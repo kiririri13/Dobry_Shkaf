@@ -37,6 +37,9 @@ public class User {
     @Column(nullable = false, length = 254)
     private String email;
 
+    @Column(length = 16)
+    private String phone;
+
     @Column(nullable = false)
     private String passwordHash;
 
@@ -49,6 +52,8 @@ public class User {
 
     @Column(precision = 3, scale = RATING_SCALE)
     private BigDecimal rating;
+
+    private Instant emailConfirmedAt;
 
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
@@ -67,6 +72,20 @@ public class User {
 
     public void rename(String name) {
         this.name = requireText(name, "name");
+    }
+
+    public void changePhone(String phone) {
+        this.phone = phone;
+    }
+
+    public boolean isEmailConfirmed() {
+        return emailConfirmedAt != null;
+    }
+
+    public void confirmEmail() {
+        if (emailConfirmedAt == null) {
+            emailConfirmedAt = Instant.now();
+        }
     }
 
     public void changePasswordHash(String passwordHash) {

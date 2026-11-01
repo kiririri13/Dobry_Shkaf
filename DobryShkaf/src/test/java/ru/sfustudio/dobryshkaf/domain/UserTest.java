@@ -6,6 +6,7 @@ import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
@@ -65,6 +66,23 @@ class UserTest {
         user.updateRating(new BigDecimal(rating));
 
         assertThat(user.getRating()).isEqualByComparingTo(rating);
+    }
+
+    @Test
+    void newUserHasUnconfirmedEmail() {
+        assertThat(user().isEmailConfirmed()).isFalse();
+    }
+
+    @Test
+    void repeatedConfirmationKeepsOriginalTime() {
+        User user = user();
+        user.confirmEmail();
+        Instant confirmedAt = user.getEmailConfirmedAt();
+
+        user.confirmEmail();
+
+        assertThat(user.isEmailConfirmed()).isTrue();
+        assertThat(user.getEmailConfirmedAt()).isEqualTo(confirmedAt);
     }
 
     @Test
