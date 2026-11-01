@@ -47,7 +47,6 @@ public class User {
     @Column(nullable = false, length = 32)
     private UserRole role;
 
-    /** Сводная оценка по отзывам; {@code null}, пока отзывов нет. */
     @Column(precision = 3, scale = RATING_SCALE)
     private BigDecimal rating;
 
