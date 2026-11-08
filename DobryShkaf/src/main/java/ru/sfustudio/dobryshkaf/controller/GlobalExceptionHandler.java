@@ -71,11 +71,17 @@ public class GlobalExceptionHandler {
         return ErrorResponse.of(ex.getCode(), ex.getMessage());
     }
 
-    // DataIntegrityViolationException: два одновременных запроса прошли проверку, сработал уникальный индекс
-    @ExceptionHandler({UserAlreadyExistsException.class, DataIntegrityViolationException.class})
+    @ExceptionHandler(UserAlreadyExistsException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ErrorResponse handleUserAlreadyExists() {
         return ErrorResponse.of("USER_ALREADY_EXISTS", "Пользователь с такой почтой или телефоном уже зарегистрирован");
+    }
+
+    // Два одновременных запроса прошли проверку в коде, и сработало ограничение БД, например уникальный индекс
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse handleDataIntegrityViolation() {
+        return ErrorResponse.of("CONFLICT", "Данные изменились одновременно с другим запросом, повторите попытку");
     }
 
     @ExceptionHandler(ConflictException.class)

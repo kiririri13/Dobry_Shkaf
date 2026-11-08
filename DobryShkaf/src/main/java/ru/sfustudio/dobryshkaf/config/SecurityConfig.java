@@ -17,6 +17,7 @@ import org.springframework.security.web.authentication.HttpStatusEntryPoint;
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
+import ru.sfustudio.dobryshkaf.domain.UserRole;
 
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfig {
@@ -34,7 +35,9 @@ public class SecurityConfig {
             "/api/photos/*",
             "/api/categories",
             "/api/districts",
-            "/api/item-conditions"
+            "/api/item-conditions",
+            "/api/points",
+            "/api/points/*"
     };
 
     @Bean
@@ -43,6 +46,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.spa().ignoringRequestMatchers(ANONYMOUS_POST_ENDPOINTS))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/admin/**").hasRole(UserRole.ADMIN.name())
                         .requestMatchers(HttpMethod.POST, ANONYMOUS_POST_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         .anyRequest().authenticated())

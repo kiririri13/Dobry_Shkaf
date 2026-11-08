@@ -16,8 +16,6 @@ import java.util.UUID;
 
 final class ItemSpecifications {
 
-    private static final char LIKE_ESCAPE = '\\';
-
     private ItemSpecifications() {
     }
 
@@ -64,13 +62,8 @@ final class ItemSpecifications {
     }
 
     private static Specification<Item> titleContains(String text) {
-        String pattern = "%" + escapeLike(text.trim().toLowerCase(Locale.ROOT)) + "%";
-        return (root, query, cb) -> cb.like(cb.lower(root.get("title")), pattern, LIKE_ESCAPE);
-    }
-
-    /** Без экранирования запрос «%» нашёл бы все объявления. */
-    private static String escapeLike(String text) {
-        return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+        String pattern = LikePatterns.containsIgnoringCase(text);
+        return (root, query, cb) -> cb.like(cb.lower(root.get("title")), pattern, LikePatterns.ESCAPE);
     }
 
     private static boolean hasText(String value) {
