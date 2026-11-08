@@ -16,5 +16,22 @@ services:
       - '127.0.0.1:1025:1025'
       - '127.0.0.1:8025:8025'
 
+  s3:
+    image: chrislusf/seaweedfs:3.97
+    # Ключи доступа только для локальной разработки: без них SeaweedFS отклоняет подписанные запросы
+    command: server -s3 -dir=/data -ip.bind=0.0.0.0 -s3.config=/etc/seaweedfs/s3.json
+    ports:
+      - '127.0.0.1:8333:8333'
+    volumes:
+      - s3-data:/data
+      - ./docker/seaweedfs/s3.json:/etc/seaweedfs/s3.json:ro
+    # S3 отвечает примерно через 15 секунд после старта; Spring Boot дождётся статуса healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-q', '-O', '/dev/null', 'http://localhost:8333/healthz']
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
 volumes:
   postgres-data:
+  s3-data:

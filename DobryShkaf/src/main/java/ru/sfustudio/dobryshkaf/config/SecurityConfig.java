@@ -27,6 +27,16 @@ public class SecurityConfig {
             "/api/auth/resend-confirmation"
     };
 
+    private static final String[] PUBLIC_GET_ENDPOINTS = {
+            "/api/auth/confirm",
+            "/api/items",
+            "/api/items/*",
+            "/api/photos/*",
+            "/api/categories",
+            "/api/districts",
+            "/api/item-conditions"
+    };
+
     @Bean
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
@@ -34,7 +44,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.POST, ANONYMOUS_POST_ENDPOINTS).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/auth/confirm").permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
