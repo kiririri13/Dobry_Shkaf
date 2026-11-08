@@ -37,7 +37,11 @@ public class SecurityConfig {
             "/api/districts",
             "/api/item-conditions",
             "/api/points",
-            "/api/points/*"
+            "/api/points/*",
+            "/v3/api-docs",
+            "/v3/api-docs/**",
+            "/swagger-ui.html",
+            "/swagger-ui/**"
     };
 
     @Bean

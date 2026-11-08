@@ -1,5 +1,8 @@
 package ru.sfustudio.dobryshkaf.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -27,6 +30,7 @@ import ru.sfustudio.dobryshkaf.service.AccountService;
 
 import java.util.UUID;
 
+@Tag(name = "1. Вход и регистрация")
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -36,24 +40,28 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
 
+    @Operation(summary = "Регистрация", description = "На почту придёт письмо со ссылкой подтверждения")
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     public UserResponse register(@Valid @RequestBody RegisterRequest request) {
         return UserResponse.from(accountService.register(request));
     }
 
+    @Operation(summary = "Подтверждение почты по токену из письма")
     @GetMapping("/confirm")
     public MessageResponse confirm(@RequestParam String token) {
         accountService.confirmEmail(token);
         return new MessageResponse("Почта подтверждена. Теперь можно войти.");
     }
 
+    @Operation(summary = "Отправить письмо подтверждения ещё раз")
     @PostMapping("/resend-confirmation")
     @ResponseStatus(HttpStatus.ACCEPTED)
     public void resendConfirmation(@Valid @RequestBody ResendConfirmationRequest request) {
         accountService.resendConfirmation(request.email());
     }
 
+    @Operation(summary = "Вход по почте или телефону", description = "Сессия сохраняется в cookie браузера")
     @PostMapping("/login")
     public UserResponse login(
             @Valid @RequestBody LoginRequest login,
@@ -74,8 +82,9 @@ public class AuthController {
         return currentUser(authentication);
     }
 
+    @Operation(summary = "Текущий пользователь")
     @GetMapping("/me")
-    public UserResponse me(Authentication authentication) {
+    public UserResponse me(@Parameter(hidden = true) Authentication authentication) {
         return currentUser(authentication);
     }
 
