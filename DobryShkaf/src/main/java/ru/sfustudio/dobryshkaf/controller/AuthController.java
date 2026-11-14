@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import ru.sfustudio.dobryshkaf.dto.LoginRequest;
+import ru.sfustudio.dobryshkaf.dto.PasswordResetConfirmRequest;
+import ru.sfustudio.dobryshkaf.dto.PasswordResetRequest;
 import ru.sfustudio.dobryshkaf.dto.MessageResponse;
 import ru.sfustudio.dobryshkaf.dto.RegisterRequest;
 import ru.sfustudio.dobryshkaf.dto.ResendConfirmationRequest;
@@ -59,6 +61,21 @@ public class AuthController {
     @ResponseStatus(HttpStatus.ACCEPTED)
     public void resendConfirmation(@Valid @RequestBody ResendConfirmationRequest request) {
         accountService.resendConfirmation(request.email());
+    }
+
+    @Operation(summary = "Запросить сброс пароля",
+            description = "Ответ одинаковый для известной и неизвестной почты. Письмо со ссылкой действует 30 минут")
+    @PostMapping("/password-reset")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public void requestPasswordReset(@Valid @RequestBody PasswordResetRequest request) {
+        accountService.requestPasswordReset(request.email());
+    }
+
+    @Operation(summary = "Задать новый пароль по токену из письма", description = "Ссылка срабатывает один раз")
+    @PostMapping("/password-reset/confirm")
+    public MessageResponse resetPassword(@Valid @RequestBody PasswordResetConfirmRequest request) {
+        accountService.resetPassword(request.token(), request.newPassword());
+        return new MessageResponse("Пароль изменён. Теперь можно войти.");
     }
 
     @Operation(summary = "Вход по почте или телефону", description = "Сессия сохраняется в cookie браузера")

@@ -25,7 +25,9 @@ public class SecurityConfig {
     private static final String[] ANONYMOUS_POST_ENDPOINTS = {
             "/api/auth/register",
             "/api/auth/login",
-            "/api/auth/resend-confirmation"
+            "/api/auth/resend-confirmation",
+            "/api/auth/password-reset",
+            "/api/auth/password-reset/confirm"
     };
 
     private static final String[] PUBLIC_GET_ENDPOINTS = {

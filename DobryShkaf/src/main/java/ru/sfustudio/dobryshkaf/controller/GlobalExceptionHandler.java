@@ -20,6 +20,7 @@ import ru.sfustudio.dobryshkaf.exception.ConflictException;
 import ru.sfustudio.dobryshkaf.exception.FieldValidationException;
 import ru.sfustudio.dobryshkaf.exception.ForbiddenException;
 import ru.sfustudio.dobryshkaf.exception.InvalidConfirmationTokenException;
+import ru.sfustudio.dobryshkaf.exception.InvalidPasswordResetTokenException;
 import ru.sfustudio.dobryshkaf.exception.InvalidPhotoException;
 import ru.sfustudio.dobryshkaf.exception.NotFoundException;
 import ru.sfustudio.dobryshkaf.exception.UserAlreadyExistsException;
@@ -112,6 +113,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse handleInvalidConfirmationToken() {
         return ErrorResponse.of("INVALID_CONFIRMATION_TOKEN", "Ссылка недействительна или устарела");
+    }
+
+    @ExceptionHandler(InvalidPasswordResetTokenException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse handleInvalidPasswordResetToken() {
+        return ErrorResponse.of("INVALID_RESET_TOKEN", "Ссылка для сброса пароля недействительна, уже использована или устарела");
     }
 
     @ExceptionHandler({BadCredentialsException.class, UserNotFoundException.class})

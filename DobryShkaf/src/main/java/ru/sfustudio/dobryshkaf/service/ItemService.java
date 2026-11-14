@@ -60,6 +60,7 @@ public class ItemService {
     private final DistrictRepository districtRepository;
     private final UserRepository userRepository;
     private final PhotoStorage photoStorage;
+    private final TransferService transferService;
 
     @Transactional(readOnly = true)
     public PageResponse<ItemResponse> search(ItemFilter filter, Optional<CurrentUser> viewer) {
@@ -105,6 +106,8 @@ public class ItemService {
     public ItemResponse close(UUID id, CurrentUser user) {
         Item item = findManageable(id, user);
         item.close();
+        // Закрытую вещь уже не получить: ждущие ответа запросы отклоняются, история сохраняется
+        transferService.rejectOpenRequests(item, user.id());
         return respond(item);
     }
 

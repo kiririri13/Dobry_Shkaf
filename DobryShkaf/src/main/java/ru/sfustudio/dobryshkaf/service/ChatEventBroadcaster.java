@@ -1,0 +1,20 @@
+package ru.sfustudio.dobryshkaf.service;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
+
+@Component
+@RequiredArgsConstructor
+public class ChatEventBroadcaster {
+
+    private final SimpMessagingTemplate messagingTemplate;
+
+    /** Только после фиксации: подписчик не должен увидеть сообщение, которого нет в истории. */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void broadcast(ChatEventPublished published) {
+        messagingTemplate.convertAndSend(ChatTopics.of(published.chatId()), published.event());
+    }
+}

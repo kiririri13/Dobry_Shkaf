@@ -168,6 +168,30 @@ public class Item {
         return PUBLIC_STATUSES.contains(status);
     }
 
+    /** Вещь можно запросить: она опубликована и не в резерве. */
+    public boolean isAvailable() {
+        return status == ItemStatus.PUBLISHED;
+    }
+
+    // Статусы резерва и передачи меняет только Transfer, чтобы вещь и передача не расходились
+
+    void reserve() {
+        if (status != ItemStatus.PUBLISHED) {
+            throw new ConflictException("ITEM_NOT_AVAILABLE", "Вещь сейчас недоступна для резерва");
+        }
+        status = ItemStatus.RESERVED;
+    }
+
+    void releaseReservation() {
+        if (status == ItemStatus.RESERVED) {
+            status = ItemStatus.PUBLISHED;
+        }
+    }
+
+    void markTransferred() {
+        status = ItemStatus.TRANSFERRED;
+    }
+
     private void requireEditable() {
         if (!EDITABLE_STATUSES.contains(status)) {
             throw new ConflictException("ITEM_NOT_EDITABLE", "Объявление в этом статусе нельзя изменить");
