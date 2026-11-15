@@ -17,4 +17,41 @@ export type Item = {
   photos: Photo[];
 };
 
-export type ItemPage = { items: Item[]; page: number; totalPages: number };
+export type ItemPage = { items: Item[]; page: number; totalPages: number; totalElements: number };
+
+type Participant = { id: string; name: string };
+type ItemSummary = { id: string; title: string; photoUrl: string | null };
+
+export type ChatMessage = {
+  id: string;
+  senderId: string;
+  seq: number;
+  text: string;
+  sentAt: string;
+  readAt: string | null;
+};
+
+export type Chat = {
+  id: string;
+  item: ItemSummary;
+  counterpart: Participant;
+  lastMessage: ChatMessage | null;
+  unreadCount: number;
+};
+
+export type MessagePage = { messages: ChatMessage[]; hasMore: boolean };
+
+export type TransferAction = "SELECT" | "CONFIRM" | "CANCEL" | "ACCEPT_CANCELLATION" | "DECLINE_CANCELLATION";
+export type TransferStatus = "REQUESTED" | "RESERVED" | "AWAITING_CONFIRMATION" | "CANCELLATION_REQUESTED" | "COMPLETED" | "REJECTED" | "CANCELLED";
+export type Transfer = {
+  id: string;
+  item: ItemSummary;
+  giver: Participant;
+  receiver: Participant;
+  chatId: string;
+  status: TransferStatus;
+  myRole: "GIVER" | "RECEIVER";
+  availableActions: TransferAction[];
+};
+
+export type TransferEvent = { id: string; actorId: string; toStatus: TransferStatus; createdAt: string };

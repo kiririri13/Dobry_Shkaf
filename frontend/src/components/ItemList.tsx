@@ -13,7 +13,7 @@ export const itemStatuses = {
   TRANSFERRED: "Передано", CLOSED: "Закрыто",
 };
 
-export default function ItemList({ mine = false, search = "" }: { mine?: boolean; search?: string }) {
+export default function ItemList({ mine = false, search = "", compact = false }: { mine?: boolean; search?: string; compact?: boolean }) {
   const [filters, setFilters] = useState<Record<string, string>>(search ? { q: search } : {});
   const [term, setTerm] = useState(search);
   const [page, setPage] = useState(0);
@@ -31,9 +31,9 @@ export default function ItemList({ mine = false, search = "" }: { mine?: boolean
   }
 
   return <>
-    <div className="section-head">
+    {!compact && <div className="section-head">
       {mine ? <h2>Мои объявления</h2> : <h1>Каталог вещей</h1>}
-    </div>
+    </div>}
     {hasFilters && <form className="panel filters" onSubmit={applyFilters} onReset={() => {
       setTerm("");
       setFilters({});
@@ -56,7 +56,7 @@ export default function ItemList({ mine = false, search = "" }: { mine?: boolean
     }} />
     <RequestStatus loading={items.loading} error={items.error} retry={items.reload} />
     {items.data && (items.data.items.length ? <>
-      <div className="cards">
+      <div className={compact ? "cards profile-cards" : "cards"}>
         {items.data.items.map((item) => <article className="card" key={item.id}>
           <Link className="card-image" href={"/items/" + item.id}>
             {item.photos[0] ? <img src={item.photos[0].url} alt={item.title} /> : <span>Без фото</span>}

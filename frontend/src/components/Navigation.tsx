@@ -7,6 +7,7 @@ import { useSession } from "./Session";
 export default function Navigation() {
   const { user } = useSession();
   const path = usePathname();
+  if (["/login", "/register", "/forgot-password", "/reset-password"].includes(path)) return null;
 
   const profile = user ? "/profile" : "/login";
   const isCatalog = path === "/items" || path.startsWith("/items/");
@@ -15,8 +16,9 @@ export default function Navigation() {
     ["/points", "Пункты приёма", "map", path.startsWith("/points")],
     ["/items", "Вещи", "pin", isCatalog],
     ["/profile/items", "Мои объявления", "box", path === "/profile/items"],
-    ["/messages", "Сообщения", "message", path === "/messages"],
+    ["/messages", "Сообщения", "message", path.startsWith("/messages")],
   ];
+  if (path.startsWith("/profile") && user) links.unshift(["/profile", "Профиль", "user", true]);
 
   return <>
     <aside className="site-sidebar">

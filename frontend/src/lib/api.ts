@@ -19,7 +19,8 @@ function csrfToken() {
 export async function api<T = void>(path: string, options: Options = {}): Promise<T> {
   const { method = "GET", json, signal } = options;
   const headers = new Headers();
-  const publicPost = path === "/auth/login";
+  const publicPost = ["/auth/login", "/auth/register", "/auth/resend-confirmation",
+    "/auth/password-reset", "/auth/password-reset/confirm"].includes(path);
   if (method !== "GET" && !publicPost) {
     if (!csrfToken()) await api("/auth/me");
     headers.set("X-XSRF-TOKEN", csrfToken());

@@ -6,6 +6,7 @@ import { useData } from "@/lib/useData";
 import type { Condition, Item } from "@/lib/types";
 import { itemStatuses } from "./ItemList";
 import RequestStatus from "./RequestStatus";
+import ItemContact from "./ItemContact";
 
 export default function ItemDetails({ id }: { id: string }) {
   const path = "/items/" + encodeURIComponent(id);
@@ -45,6 +46,7 @@ export default function ItemDetails({ id }: { id: string }) {
         {data.district && <><dt>Район</dt><dd>{data.district.name}</dd></>}
       </dl>
       {data.description && <><h2>Описание</h2><p className="description">{data.description}</p></>}
+      <ItemContact key={data.id} item={data} />
     </section>
   </article>;
 }
