@@ -24,7 +24,6 @@ import ru.sfustudio.dobryshkaf.domain.User;
 import ru.sfustudio.dobryshkaf.domain.UserRole;
 import ru.sfustudio.dobryshkaf.repository.CategoryRepository;
 import ru.sfustudio.dobryshkaf.repository.DistrictRepository;
-import ru.sfustudio.dobryshkaf.repository.EmailConfirmationTokenRepository;
 import ru.sfustudio.dobryshkaf.repository.ItemPhotoRepository;
 import ru.sfustudio.dobryshkaf.repository.ItemRepository;
 import ru.sfustudio.dobryshkaf.repository.UserRepository;
@@ -72,9 +71,6 @@ class ItemFlowIntegrationTest {
     private UserRepository userRepository;
 
     @Autowired
-    private EmailConfirmationTokenRepository tokenRepository;
-
-    @Autowired
     private CategoryRepository categoryRepository;
 
     @Autowired
@@ -99,9 +95,7 @@ class ItemFlowIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        itemRepository.deleteAll();
-        tokenRepository.deleteAll();
-        userRepository.deleteAll();
+        jdbcTemplate.execute("TRUNCATE items, users CASCADE");
         owner = userRepository.save(confirmedUser("owner@example.com", UserRole.USER));
         stranger = userRepository.save(confirmedUser("stranger@example.com", UserRole.USER));
         admin = userRepository.save(confirmedUser("admin@example.com", UserRole.ADMIN));

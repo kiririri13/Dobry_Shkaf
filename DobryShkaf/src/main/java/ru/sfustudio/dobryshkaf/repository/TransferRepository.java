@@ -13,6 +13,13 @@ import java.util.UUID;
 
 public interface TransferRepository extends JpaRepository<Transfer, UUID> {
 
+    long countByStatus(TransferStatus status);
+
+    @Query("select count(t) from Transfer t where t.status = :status and (t.giver.id = :userId or t.receiver.id = :userId)")
+    long countForParticipant(UUID userId, TransferStatus status);
+
+    List<Transfer> findByChatIdOrderByCreatedAtDesc(UUID chatId);
+
     /** id вещи без загрузки самой передачи: её нужно читать уже после блокировки вещи. */
     @Query("select t.item.id from Transfer t where t.id = :id")
     Optional<UUID> findItemIdById(@Param("id") UUID id);

@@ -3,6 +3,7 @@ package ru.sfustudio.dobryshkaf.service;
 import org.springframework.data.jpa.domain.Specification;
 import ru.sfustudio.dobryshkaf.domain.Item;
 import ru.sfustudio.dobryshkaf.domain.ItemStatus;
+import ru.sfustudio.dobryshkaf.domain.ItemModerationStatus;
 import ru.sfustudio.dobryshkaf.dto.ItemFilter;
 import ru.sfustudio.dobryshkaf.exception.AuthenticationRequiredException;
 
@@ -26,6 +27,7 @@ final class ItemSpecifications {
             specs.add(ownedBy(viewer.orElseThrow(AuthenticationRequiredException::new).id()));
         } else {
             specs.add(statusIn(visibleStatuses(filter.available())));
+            specs.add((root, query, cb) -> cb.notEqual(root.get("moderationStatus"), ItemModerationStatus.HIDDEN));
         }
         if (hasText(filter.q())) {
             specs.add(titleContains(filter.q()));

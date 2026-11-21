@@ -5,6 +5,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.authentication.LockedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -125,6 +126,12 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ErrorResponse handleBadCredentials() {
         return ErrorResponse.of("INVALID_CREDENTIALS", "Неверный логин или пароль");
+    }
+
+    @ExceptionHandler(LockedException.class)
+    @ResponseStatus(HttpStatus.FORBIDDEN)
+    public ErrorResponse handleAccountBlocked() {
+        return ErrorResponse.of("ACCOUNT_BLOCKED", "Аккаунт заблокирован");
     }
 
     @ExceptionHandler(DisabledException.class)

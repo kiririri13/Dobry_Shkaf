@@ -37,6 +37,7 @@ public class DatabaseUserDetailsService implements UserDetailsService {
                 .password(user.getPasswordHash())
                 .roles(user.getRole().name())
                 .disabled(!user.isEmailConfirmed())
+                .accountLocked(user.isBlocked())
                 .build();
     }
 }

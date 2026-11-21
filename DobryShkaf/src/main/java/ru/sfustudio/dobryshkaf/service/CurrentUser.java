@@ -10,7 +10,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 /** Вошедший пользователь; имя в {@link Authentication} — его id (см. DatabaseUserDetailsService). */
-public record CurrentUser(UUID id, boolean admin) {
+public record CurrentUser(UUID id, boolean admin, boolean moderator) {
+
+    public CurrentUser(UUID id, boolean admin) {
+        this(id, admin, false);
+    }
+
+    public boolean canModerate() {
+        return admin || moderator;
+    }
 
     private static final String ADMIN_AUTHORITY = "ROLE_" + UserRole.ADMIN.name();
 
@@ -22,7 +30,9 @@ public record CurrentUser(UUID id, boolean admin) {
         }
         boolean admin = authentication.getAuthorities().stream()
                 .anyMatch(authority -> ADMIN_AUTHORITY.equals(authority.getAuthority()));
-        return Optional.of(new CurrentUser(UUID.fromString(authentication.getName()), admin));
+        boolean moderator = authentication.getAuthorities().stream()
+                .anyMatch(authority -> ("ROLE_" + UserRole.MODERATOR.name()).equals(authority.getAuthority()));
+        return Optional.of(new CurrentUser(UUID.fromString(authentication.getName()), admin, moderator));
     }
 
     public static CurrentUser require(Authentication authentication) {

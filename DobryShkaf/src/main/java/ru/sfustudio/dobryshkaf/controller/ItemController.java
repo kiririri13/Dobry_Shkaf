@@ -83,6 +83,12 @@ public class ItemController {
         return itemService.close(id, CurrentUser.require(authentication));
     }
 
+    @Operation(summary = "Открыть закрытое объявление и отменить его экологический вклад")
+    @PostMapping("/{id}/reopen")
+    public ItemResponse reopen(@PathVariable UUID id, @Parameter(hidden = true) Authentication authentication) {
+        return itemService.reopen(id, CurrentUser.require(authentication));
+    }
+
     @Operation(summary = "Загрузить фото", description = "JPEG, PNG или WebP до 5 МБ, не больше 5 фото на объявление")
     @PostMapping(path = "/{id}/photos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)

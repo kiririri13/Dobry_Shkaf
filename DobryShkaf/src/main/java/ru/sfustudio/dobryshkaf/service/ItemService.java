@@ -26,7 +26,6 @@ import ru.sfustudio.dobryshkaf.repository.CategoryRepository;
 import ru.sfustudio.dobryshkaf.repository.DistrictRepository;
 import ru.sfustudio.dobryshkaf.repository.ItemPhotoRepository;
 import ru.sfustudio.dobryshkaf.repository.ItemRepository;
-import ru.sfustudio.dobryshkaf.repository.UserRepository;
 import ru.sfustudio.dobryshkaf.storage.PhotoStorage;
 
 import java.io.IOException;
@@ -58,9 +57,10 @@ public class ItemService {
     private final ItemPhotoRepository itemPhotoRepository;
     private final CategoryRepository categoryRepository;
     private final DistrictRepository districtRepository;
-    private final UserRepository userRepository;
     private final PhotoStorage photoStorage;
     private final TransferService transferService;
+    private final ActiveAccounts accounts;
+    private final EcoService eco;
 
     @Transactional(readOnly = true)
     public PageResponse<ItemResponse> search(ItemFilter filter, Optional<CurrentUser> viewer) {
@@ -79,7 +79,7 @@ public class ItemService {
 
     @Transactional
     public ItemResponse create(ItemRequest request, CurrentUser user) {
-        Item item = new Item(userRepository.getReferenceById(user.id()), request.title());
+        Item item = new Item(accounts.lockActive(user), request.title());
         apply(item, request);
         return respond(itemRepository.save(item));
     }
@@ -94,6 +94,7 @@ public class ItemService {
 
     @Transactional
     public ItemResponse publish(UUID id, CurrentUser user) {
+        accounts.lockActive(user);
         Item item = findManageable(id, user);
         if (item.getStatus() == ItemStatus.DRAFT) {
             requireComplete(item);
@@ -105,9 +106,28 @@ public class ItemService {
     @Transactional
     public ItemResponse close(UUID id, CurrentUser user) {
         Item item = findManageable(id, user);
+        if (item.getStatus() == ItemStatus.CLOSED) {
+            return ItemResponse.from(item);
+        }
+        boolean published = item.getStatus() == ItemStatus.PUBLISHED;
         item.close();
         // Закрытую вещь уже не получить: ждущие ответа запросы отклоняются, история сохраняется
         transferService.rejectOpenRequests(item, user.id());
+        if (published) {
+            eco.credit(item);
+        }
+        return respond(item);
+    }
+
+    @Transactional
+    public ItemResponse reopen(UUID id, CurrentUser user) {
+        Item item = findManageable(id, user);
+        if (item.getStatus() == ItemStatus.PUBLISHED) {
+            return ItemResponse.from(item);
+        }
+        requireComplete(item);
+        item.reopen(Instant.now());
+        eco.deactivate(id);
         return respond(item);
     }
 
@@ -169,7 +189,9 @@ public class ItemService {
 
     /** Чужой черновик для постороннего не существует (404), а чужое опубликованное объявление менять нельзя (403). */
     private Item findManageable(UUID id, CurrentUser user) {
-        Item item = findVisible(id, Optional.of(user));
+        Item item = itemRepository.findForUpdateById(id)
+                .filter(found -> canView(found, Optional.of(user)))
+                .orElseThrow(ItemService::itemNotFound);
         requireCanManage(item, user);
         return item;
     }

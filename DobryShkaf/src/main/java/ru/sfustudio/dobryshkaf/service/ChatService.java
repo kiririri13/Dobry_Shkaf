@@ -46,6 +46,7 @@ public class ChatService {
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
     private final ApplicationEventPublisher events;
+    private final ActiveAccounts accounts;
 
     /** Один диалог на пару «объявление и пользователь»: повторное открытие возвращает существующий. */
     @Transactional
@@ -90,7 +91,11 @@ public class ChatService {
      */
     @Transactional(readOnly = true)
     public MessagePageResponse messages(UUID chatId, CurrentUser user, Long beforeSeq, Long afterSeq, Integer limit) {
-        Chat chat = findAccessible(chatId, user);
+        findAccessible(chatId, user);
+        return messagePage(chatId, beforeSeq, afterSeq, limit);
+    }
+
+    MessagePageResponse messagePage(UUID chatId, Long beforeSeq, Long afterSeq, Integer limit) {
         if (beforeSeq != null && afterSeq != null) {
             throw new FieldValidationException("VALIDATION_FAILED", "Проверьте параметры запроса",
                     Map.of("afterSeq", "Укажите либо beforeSeq, либо afterSeq"));
@@ -98,9 +103,9 @@ public class ChatService {
         int size = pageSize(limit);
         PageRequest window = PageRequest.of(0, size + 1);
         List<ChatMessage> found = afterSeq != null
-                ? messageRepository.findByChatIdAndSeqGreaterThanOrderBySeqAsc(chat.getId(), afterSeq, window)
+                ? messageRepository.findByChatIdAndSeqGreaterThanOrderBySeqAsc(chatId, afterSeq, window)
                 : messageRepository.findByChatIdAndSeqLessThanOrderBySeqDesc(
-                        chat.getId(), beforeSeq == null ? Long.MAX_VALUE : beforeSeq, window);
+                        chatId, beforeSeq == null ? Long.MAX_VALUE : beforeSeq, window);
 
         boolean hasMore = found.size() > size;
         List<ChatMessage> page = new ArrayList<>(hasMore ? found.subList(0, size) : found);
@@ -114,6 +119,7 @@ public class ChatService {
     /** Повтор с тем же requestId возвращает уже сохранённое сообщение и не рассылает его второй раз. */
     @Transactional
     public CommandResult<ChatMessageResponse> send(UUID chatId, SendMessageRequest request, CurrentUser user) {
+        accounts.lockActive(user);
         Chat chat = chatRepository.findForUpdateById(chatId).orElseThrow(ChatService::chatNotFound);
         requireParticipant(chat, user);
         Optional<ChatMessage> repeated =

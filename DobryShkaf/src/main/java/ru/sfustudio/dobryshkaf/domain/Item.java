@@ -78,6 +78,10 @@ public class Item {
 
     private Instant publishedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private ItemModerationStatus moderationStatus = ItemModerationStatus.PENDING;
+
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("sortOrder ASC")
     private List<ItemPhoto> photos = new ArrayList<>();
@@ -105,6 +109,7 @@ public class Item {
         this.size = size;
         this.category = category;
         this.district = district;
+        markPendingIfVisible();
     }
 
     /** Поля, без которых объявление нельзя опубликовать; пустой набор — можно. */
@@ -143,17 +148,44 @@ public class Item {
         status = ItemStatus.CLOSED;
     }
 
+    public void reopen(Instant now) {
+        if (status != ItemStatus.CLOSED || publishedAt == null) {
+            throw new ConflictException("ITEM_NOT_REOPENABLE", "Открыть заново можно ранее опубликованное объявление");
+        }
+        status = ItemStatus.PUBLISHED;
+        publishedAt = now;
+    }
+
+    public boolean moderate(ItemModerationStatus next) {
+        if (!PUBLIC_STATUSES.contains(status)) {
+            throw new ConflictException("ITEM_NOT_MODERATABLE", "Объявление сейчас вне очереди модерации");
+        }
+        if (moderationStatus == next) {
+            return false;
+        }
+        moderationStatus = next;
+        return true;
+    }
+
+    private void markPendingIfVisible() {
+        if (moderationStatus == ItemModerationStatus.REVIEWED) {
+            moderationStatus = ItemModerationStatus.PENDING;
+        }
+    }
+
     public ItemPhoto addPhoto(String storageKey, String contentType, int sizeBytes) {
         requireEditable();
         int nextOrder = photos.stream().mapToInt(ItemPhoto::getSortOrder).max().orElse(-1) + 1;
         ItemPhoto photo = new ItemPhoto(this, storageKey, contentType, sizeBytes, nextOrder);
         photos.add(photo);
+        markPendingIfVisible();
         return photo;
     }
 
     public void removePhoto(ItemPhoto photo) {
         requireEditable();
         photos.remove(photo);
+        markPendingIfVisible();
     }
 
     public boolean hasRoomForPhoto() {
@@ -165,18 +197,18 @@ public class Item {
     }
 
     public boolean isPublic() {
-        return PUBLIC_STATUSES.contains(status);
+        return PUBLIC_STATUSES.contains(status) && moderationStatus != ItemModerationStatus.HIDDEN;
     }
 
     /** Вещь можно запросить: она опубликована и не в резерве. */
     public boolean isAvailable() {
-        return status == ItemStatus.PUBLISHED;
+        return status == ItemStatus.PUBLISHED && isPublic();
     }
 
     // Статусы резерва и передачи меняет только Transfer, чтобы вещь и передача не расходились
 
     void reserve() {
-        if (status != ItemStatus.PUBLISHED) {
+        if (!isAvailable()) {
             throw new ConflictException("ITEM_NOT_AVAILABLE", "Вещь сейчас недоступна для резерва");
         }
         status = ItemStatus.RESERVED;

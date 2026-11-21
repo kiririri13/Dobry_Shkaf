@@ -3,6 +3,7 @@ package ru.sfustudio.dobryshkaf.dto;
 import ru.sfustudio.dobryshkaf.domain.Item;
 import ru.sfustudio.dobryshkaf.domain.ItemCondition;
 import ru.sfustudio.dobryshkaf.domain.ItemStatus;
+import ru.sfustudio.dobryshkaf.domain.ItemModerationStatus;
 
 import java.time.Instant;
 import java.util.List;
@@ -15,6 +16,7 @@ public record ItemResponse(
         ItemCondition condition,
         String size,
         ItemStatus status,
+        ItemModerationStatus moderationStatus,
         CategoryResponse category,
         DistrictResponse district,
         OwnerResponse owner,
@@ -32,6 +34,7 @@ public record ItemResponse(
                 item.getCondition(),
                 item.getSize(),
                 item.getStatus(),
+                item.getModerationStatus(),
                 item.getCategory() == null ? null : CategoryResponse.from(item.getCategory()),
                 item.getDistrict() == null ? null : DistrictResponse.from(item.getDistrict()),
                 OwnerResponse.from(item.getOwner()),

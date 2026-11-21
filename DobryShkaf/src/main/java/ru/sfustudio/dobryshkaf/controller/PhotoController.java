@@ -15,15 +15,12 @@ import ru.sfustudio.dobryshkaf.service.CurrentUser;
 import ru.sfustudio.dobryshkaf.service.ItemService;
 import ru.sfustudio.dobryshkaf.service.StoredPhoto;
 
-import java.time.Duration;
 import java.util.UUID;
 
 @Tag(name = "2. Объявления")
 @RestController
 @RequiredArgsConstructor
 public class PhotoController {
-
-    private static final Duration CACHE_DURATION = Duration.ofDays(1);
 
     private final ItemService itemService;
 
@@ -34,7 +31,7 @@ public class PhotoController {
         StoredPhoto photo = itemService.getPhoto(photoId, CurrentUser.from(authentication));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(photo.contentType()))
-                .cacheControl(CacheControl.maxAge(CACHE_DURATION).cachePrivate())
+                .cacheControl(CacheControl.noStore())
                 .body(photo.content());
     }
 }

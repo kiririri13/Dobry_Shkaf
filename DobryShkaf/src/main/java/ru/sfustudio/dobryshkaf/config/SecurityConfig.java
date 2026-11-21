@@ -40,6 +40,10 @@ public class SecurityConfig {
             "/api/item-conditions",
             "/api/points",
             "/api/points/*",
+            "/api/profiles/*",
+            "/api/profiles/*/reviews",
+            "/api/stats",
+            "/api/eco/methodology",
             "/v3/api-docs",
             "/v3/api-docs/**",
             "/swagger-ui.html",
@@ -52,6 +56,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.spa().ignoringRequestMatchers(ANONYMOUS_POST_ENDPOINTS))
                 .authorizeHttpRequests(requests -> requests
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/api/admin/complaints", "/api/admin/complaints/**")
+                        .hasAnyRole(UserRole.ADMIN.name(), UserRole.MODERATOR.name())
                         .requestMatchers("/api/admin/**").hasRole(UserRole.ADMIN.name())
                         .requestMatchers(HttpMethod.POST, ANONYMOUS_POST_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()

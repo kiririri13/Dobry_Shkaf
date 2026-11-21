@@ -4,6 +4,9 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -55,6 +58,13 @@ public class User {
 
     private Instant emailConfirmedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "district_id")
+    private District district;
+
+    @Column(nullable = false)
+    private boolean blocked;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -72,6 +82,14 @@ public class User {
 
     public void rename(String name) {
         this.name = requireText(name, "name");
+    }
+
+    public void changeDistrict(District district) {
+        this.district = district;
+    }
+
+    public void block() {
+        blocked = true;
     }
 
     public void changePhone(String phone) {
@@ -103,6 +121,10 @@ public class User {
             throw new IllegalArgumentException("rating must be between %s and %s".formatted(MIN_RATING, MAX_RATING));
         }
         this.rating = rounded;
+    }
+
+    public void clearRating() {
+        rating = null;
     }
 
     @Override

@@ -39,6 +39,13 @@ public class TransferService {
     private final ItemRepository itemRepository;
     private final UserRepository userRepository;
     private final ChatService chatService;
+    private final EcoService eco;
+
+    @Transactional(readOnly = true)
+    public long countCompleted(UUID participant) {
+        return participant == null ? transferRepository.countByStatus(TransferStatus.COMPLETED)
+                : transferRepository.countForParticipant(participant, TransferStatus.COMPLETED);
+    }
 
     /** Повтор запроса от того же получателя возвращает уже существующую активную передачу. */
     @Transactional
@@ -149,6 +156,9 @@ public class TransferService {
 
         TransferStatus before = transfer.getStatus();
         if (action.test(transfer, role)) {
+            if (transfer.getStatus() == TransferStatus.COMPLETED) {
+                eco.credit(transfer.getItem());
+            }
             record(transfer, user.id(), command, before);
         }
         return respond(transfer, user);
