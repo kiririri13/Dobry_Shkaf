@@ -9,6 +9,7 @@ import ru.sfustudio.dobryshkaf.domain.Chat;
 import ru.sfustudio.dobryshkaf.domain.ChatMessage;
 import ru.sfustudio.dobryshkaf.domain.Item;
 import ru.sfustudio.dobryshkaf.domain.Transfer;
+import ru.sfustudio.dobryshkaf.domain.User;
 import ru.sfustudio.dobryshkaf.dto.ChatMessageResponse;
 import ru.sfustudio.dobryshkaf.dto.ChatResponse;
 import ru.sfustudio.dobryshkaf.dto.ItemSummaryResponse;
@@ -119,7 +120,7 @@ public class ChatService {
     /** Повтор с тем же requestId возвращает уже сохранённое сообщение и не рассылает его второй раз. */
     @Transactional
     public CommandResult<ChatMessageResponse> send(UUID chatId, SendMessageRequest request, CurrentUser user) {
-        accounts.lockActive(user);
+        User sender = accounts.lockActive(user);
         Chat chat = chatRepository.findForUpdateById(chatId).orElseThrow(ChatService::chatNotFound);
         requireParticipant(chat, user);
         Optional<ChatMessage> repeated =
@@ -128,11 +129,15 @@ public class ChatService {
             return new CommandResult<>(ChatMessageResponse.from(repeated.get()), false);
         }
 
-        ChatMessage message = messageRepository.save(ChatMessage.send(
-                chat, userRepository.getReferenceById(user.id()), request.text(), request.requestId()));
+        ChatMessage message = messageRepository.save(ChatMessage.send(chat, sender, request.text(), request.requestId()));
         messageRepository.flush();
         ChatMessageResponse response = ChatMessageResponse.from(message);
         publish(chatId, ChatEventType.MESSAGE_CREATED, response);
+        if (chat.getRequester().getId().equals(sender.getId())) {
+            Item item = chat.getItem();
+            User owner = item.getOwner();
+            events.publishEvent(new ListingMessageReceived(chatId, owner.getEmail(), item.getTitle(), sender.getName()));
+        }
         return new CommandResult<>(response, true);
     }
 
