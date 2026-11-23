@@ -36,7 +36,7 @@ export default function PasswordRecovery({ token }: { token?: string }) {
     }
   }
 
-  return <section className="panel narrow recovery">
+  const content = <section className={reset ? "panel narrow recovery" : "panel recovery recovery-request"}>
     <Link href="/" className="brand"><img src="/design/brand.svg" alt="Добрый Шкаф" /></Link>
     <h1>{reset ? "Новый пароль" : "Забыли пароль?"}</h1>
     {invalid && <p role="alert">Ссылка недействительна или устарела. <Link href="/forgot-password">Запросить новую ссылку</Link></p>}
@@ -47,10 +47,11 @@ export default function PasswordRecovery({ token }: { token?: string }) {
           <PasswordField label="Новый пароль" register />
           <PasswordField label="Повторите пароль" name="confirmation" register />
         </> : <label>Электронная почта<input name="email" type="email" autoComplete="email" required maxLength={254} /></label>}
-        <button>{busy ? "Подождите…" : reset ? "Сохранить пароль" : "Отправить ссылку"}</button>
+        <button className={reset ? undefined : "recovery-submit"}>{busy ? "Подождите…" : reset ? "Сохранить пароль" : "Отправить ссылку"}</button>
       </fieldset>
     </form>}
     <RequestStatus error={error} />
     <p className="auth-help"><Link href="/login">Вернуться ко входу</Link></p>
   </section>;
+  return reset ? content : <div className="recovery-screen">{content}</div>;
 }

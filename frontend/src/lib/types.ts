@@ -55,3 +55,27 @@ export type Transfer = {
 };
 
 export type TransferEvent = { id: string; actorId: string; toStatus: TransferStatus; createdAt: string };
+export type Favorites = { items: Item[]; points: Point[] };
+export type Review = { id: string; rating: number; text: string | null; createdAt: string };
+export type PointType = "COLLECTION" | "EXCHANGE";
+export type PointStatus = "ACTIVE" | "TEMPORARILY_CLOSED" | "ARCHIVED";
+
+export type Point = {
+  id: string;
+  name: string;
+  type: PointType;
+  status: PointStatus;
+  organization: { name: string };
+  district: District;
+  address: string;
+  latitude: number;
+  longitude: number;
+  hours: string;
+  contacts: string;
+  categories: Category[];
+  conditions: string;
+  receivingConditions: string | null;
+  source: string;
+  verifiedAt: string;
+  temporarilyClosed: boolean;
+};

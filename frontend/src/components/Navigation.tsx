@@ -15,7 +15,9 @@ export default function Navigation() {
     ["/", "Главная", "home", path === "/"],
     ["/points", "Пункты приёма", "map", path.startsWith("/points")],
     ["/items", "Вещи", "pin", isCatalog],
+    ["/favorites", "Избранное", "heart", path === "/favorites"],
     ["/profile/items", "Мои объявления", "box", path === "/profile/items"],
+    ["/notifications", "Уведомления", "bell", path === "/notifications"],
     ["/messages", "Сообщения", "message", path.startsWith("/messages")],
   ];
   if (path.startsWith("/profile") && user) links.unshift(["/profile", "Профиль", "user", true]);

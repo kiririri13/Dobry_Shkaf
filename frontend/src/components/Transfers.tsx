@@ -85,6 +85,7 @@ export function TransferDetails({ id }: { id: string }) {
       <p><span className="badge">{transferStatuses[data.status]}</span></p>
       <p>Отдаёт: {data.giver.name}. Получает: {data.receiver.name}.</p>
       <p><Link href={"/messages/" + data.chatId}>Открыть диалог</Link></p>
+      {data.status === "COMPLETED" && <p><Link className="button secondary" href={`/profile/transfers/${id}/review`}>Оставить отзыв</Link></p>}
       <div className="actions">
         {data.availableActions.map((action) => <button key={action} disabled={busy} onClick={() => change(action)}>{actionLabel(action, data)}</button>)}
       </div>

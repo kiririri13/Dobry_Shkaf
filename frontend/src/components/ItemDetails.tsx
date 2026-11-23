@@ -7,6 +7,7 @@ import type { Condition, Item } from "@/lib/types";
 import { itemStatuses } from "./ItemList";
 import RequestStatus from "./RequestStatus";
 import ItemContact from "./ItemContact";
+import { FavoriteControl } from "./FavoriteButton";
 
 export default function ItemDetails({ id }: { id: string }) {
   const path = "/items/" + encodeURIComponent(id);
@@ -47,6 +48,7 @@ export default function ItemDetails({ id }: { id: string }) {
       </dl>
       {data.description && <><h2>Описание</h2><p className="description">{data.description}</p></>}
       <ItemContact key={data.id} item={data} />
+      {["PUBLISHED", "RESERVED"].includes(data.status) && <FavoriteControl key={"favorite-" + data.id} id={data.id} type="ITEMS" />}
     </section>
   </article>;
 }
