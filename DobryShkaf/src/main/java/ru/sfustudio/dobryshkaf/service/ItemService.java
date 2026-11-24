@@ -66,6 +66,12 @@ public class ItemService {
     }
 
     @Transactional(readOnly = true)
+    public PageResponse<ItemResponse> publicByOwner(UUID id, int page) {
+        PageRequest request = PageRequest.of(page, PAGE_SIZE, Sort.by(Sort.Direction.DESC, "publishedAt", "id"));
+        return PageResponse.from(itemRepository.findAll(ItemSpecifications.publicByOwner(id), request).map(ItemResponse::from));
+    }
+
+    @Transactional(readOnly = true)
     public ItemResponse get(UUID id, Optional<CurrentUser> viewer) {
         return ItemResponse.from(findVisible(id, viewer));
     }
@@ -169,7 +175,7 @@ public class ItemService {
     @Transactional(readOnly = true)
     public StoredPhoto getPhoto(UUID photoId, Optional<CurrentUser> viewer) {
         ItemPhoto photo = itemPhotoRepository.findWithItemById(photoId)
-                .filter(found -> canView(found.getItem(), viewer))
+                .filter(found -> canView(found.getItem(), viewer) || found.getItem().hasPublicHistoryPhoto())
                 .orElseThrow(() -> new NotFoundException("Фото не найдено"));
         return new StoredPhoto(mediaFiles.get(photo.getStorageKey()), photo.getContentType());
     }

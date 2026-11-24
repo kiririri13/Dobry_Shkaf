@@ -209,6 +209,10 @@ public class Item {
         return PUBLIC_STATUSES.contains(status) && moderationStatus != ItemModerationStatus.HIDDEN;
     }
 
+    public boolean hasPublicHistoryPhoto() {
+        return status == ItemStatus.TRANSFERRED && moderationStatus != ItemModerationStatus.HIDDEN;
+    }
+
     /** Вещь можно запросить: она опубликована и не в резерве. */
     public boolean isAvailable() {
         return status == ItemStatus.PUBLISHED && isPublic();

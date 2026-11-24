@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import ru.sfustudio.dobryshkaf.domain.TransferStatus;
 import ru.sfustudio.dobryshkaf.dto.TransferResponse;
+import ru.sfustudio.dobryshkaf.dto.ItemResponse;
+import ru.sfustudio.dobryshkaf.dto.PageResponse;
 import ru.sfustudio.dobryshkaf.service.CurrentUser;
 import ru.sfustudio.dobryshkaf.service.ProfileService;
 import ru.sfustudio.dobryshkaf.service.TransferService;
@@ -49,12 +51,18 @@ public class ProfileController {
     @PutMapping("/profile/me")
     public ProfileService.PrivateProfile update(@Valid @RequestBody ProfileUpdate request,
                                                  @Parameter(hidden = true) Authentication authentication) {
-        return profiles.update(CurrentUser.require(authentication), request.name(), request.districtId());
+        return profiles.update(CurrentUser.require(authentication), request.name(), request.districtId(), request.bio());
     }
 
     @GetMapping("/profiles/{id}")
     public ProfileService.PublicProfile profile(@PathVariable UUID id) {
         return profiles.profile(id);
+    }
+
+    @GetMapping("/profiles/{id}/items")
+    public PageResponse<ItemResponse> publicItems(@PathVariable UUID id,
+                                                  @RequestParam(defaultValue = "0") @Min(0) int page) {
+        return profiles.publicItems(id, page);
     }
 
     @GetMapping("/profiles/{id}/history")
@@ -106,6 +114,7 @@ public class ProfileController {
         profiles.removeFavorite(type, id, CurrentUser.require(authentication));
     }
 
-    public record ProfileUpdate(@NotBlank @Size(max = 100) String name, UUID districtId) {
+    public record ProfileUpdate(@NotBlank @Size(max = 100) String name, UUID districtId,
+                                @Size(max = 1000, message = "Текст о себе должен быть не длиннее 1000 символов") String bio) {
     }
 }

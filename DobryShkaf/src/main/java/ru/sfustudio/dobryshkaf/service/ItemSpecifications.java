@@ -26,8 +26,7 @@ final class ItemSpecifications {
             // Свои объявления владелец видит во всех статусах, включая черновики
             specs.add(ownedBy(viewer.orElseThrow(AuthenticationRequiredException::new).id()));
         } else {
-            specs.add(statusIn(visibleStatuses(filter.available())));
-            specs.add((root, query, cb) -> cb.notEqual(root.get("moderationStatus"), ItemModerationStatus.HIDDEN));
+            specs.add(publicListings(filter.available()));
         }
         if (hasText(filter.q())) {
             specs.add(titleContains(filter.q()));
@@ -46,6 +45,15 @@ final class ItemSpecifications {
             specs.add((root, query, cb) -> cb.equal(cb.lower(root.get("size")), size));
         }
         return Specification.allOf(specs);
+    }
+
+    static Specification<Item> publicByOwner(UUID ownerId) {
+        return publicListings(null).and(ownedBy(ownerId));
+    }
+
+    private static Specification<Item> publicListings(Boolean available) {
+        return statusIn(visibleStatuses(available))
+                .and((root, query, cb) -> cb.notEqual(root.get("moderationStatus"), ItemModerationStatus.HIDDEN));
     }
 
     private static Set<ItemStatus> visibleStatuses(Boolean available) {

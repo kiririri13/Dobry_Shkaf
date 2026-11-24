@@ -18,6 +18,7 @@ import ru.sfustudio.dobryshkaf.TestcontainersConfiguration;
 import ru.sfustudio.dobryshkaf.domain.Item;
 import ru.sfustudio.dobryshkaf.domain.User;
 import ru.sfustudio.dobryshkaf.support.WeekThreeFixtures;
+import ru.sfustudio.dobryshkaf.storage.PhotoStorage;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -51,6 +52,9 @@ class FrontendAdditionsIntegrationTest {
     @Autowired
     private JdbcTemplate jdbc;
 
+    @Autowired
+    private PhotoStorage photoStorage;
+
     private User owner;
     private Actors actors;
     private Item item;
@@ -71,7 +75,7 @@ class FrontendAdditionsIntegrationTest {
         UUID district = jdbc.queryForObject("select district_id from items where id = ?", UUID.class, item.getId());
         UUID category = jdbc.queryForObject("select category_id from items where id = ?", UUID.class, item.getId());
         String edit = """
-                {"title":"Книга","description":"Описание","condition":"NEW","categoryId":"%s","districtId":"%s"}""";
+                {"title":"Книга","description":"Описание","condition":"NEW","size":"M","categoryId":"%s","districtId":"%s"}""";
         String withMethod = edit.formatted(category, district).replace("}", ", \"deliveryMethod\":\"EXCHANGE\"}");
         as(owner.getId(), put("/api/items/{id}", item.getId()), withMethod)
                 .andExpect(status().isOk()).andExpect(jsonPath("$.deliveryMethod").value("EXCHANGE"));
@@ -82,13 +86,26 @@ class FrontendAdditionsIntegrationTest {
         mvc.perform(get("/api/profiles/{id}/history", owner.getId()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(0)));
         completeTransfer(transfer);
-        mvc.perform(get("/api/profiles/{id}/history", owner.getId())).andExpect(status().isOk())
+        byte[] image = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+        photoStorage.put(item.getPhotos().getFirst().getStorageKey(), image, "image/jpeg");
+        ResultActions history = mvc.perform(get("/api/profiles/{id}/history", owner.getId())).andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].role").value("GIVER"))
                 .andExpect(jsonPath("$.items[0].deliveryMethod").value("EXCHANGE"))
                 .andExpect(jsonPath("$.items[0].chatId").doesNotExist())
-                .andExpect(jsonPath("$.items[0].receiver").doesNotExist());
+                .andExpect(jsonPath("$.items[0].receiver").doesNotExist())
+                .andExpect(jsonPath("$.items[0].size").value("M"));
+        String photoUrl = field(history, "$.items[0].photoUrl");
+        mvc.perform(get(photoUrl)).andExpect(status().isOk()).andExpect(content().bytes(image));
+        as(owner.getId(), get("/api/profile/me/history"), null)
+                .andExpect(jsonPath("$[0].item.size").value("M"))
+                .andExpect(jsonPath("$[0].item.photoUrl").value(photoUrl));
+        mvc.perform(get("/api/items/{id}", item.getId())).andExpect(status().isNotFound());
         mvc.perform(get("/api/profiles/{id}/history", actors.reader()))
                 .andExpect(jsonPath("$.items[0].role").value("RECEIVER"));
+        jdbc.update("update items set moderation_status = 'HIDDEN' where id = ?", item.getId());
+        mvc.perform(get(photoUrl)).andExpect(status().isNotFound());
+        mvc.perform(get("/api/profiles/{id}/history", owner.getId()))
+                .andExpect(jsonPath("$.items", hasSize(0)));
     }
 
     @Test
@@ -146,14 +163,14 @@ class FrontendAdditionsIntegrationTest {
                 .andExpect(status().isCreated()), "$.id");
 
         String notification = field(as(owner.getId(), get("/api/notifications"), null)
-                .andExpect(jsonPath("$.unreadCount").value(3))
+                .andExpect(jsonPath("$.unreadCount").value(4))
                 .andExpect(jsonPath("$.items[0].type").value("REVIEW_RECEIVED")), "$.items[0].id");
         as(actors.reader(), put("/api/notifications/{id}/read", notification), null).andExpect(status().isNotFound());
         as(owner.getId(), get("/api/profile/me/reviews"), null).andExpect(jsonPath("$[0].readAt").doesNotExist());
         as(owner.getId(), put("/api/profile/me/reviews/{id}/read", review), null).andExpect(status().isNoContent());
         as(owner.getId(), put("/api/profile/me/reviews/{id}/read", review), null).andExpect(status().isNoContent());
         as(owner.getId(), get("/api/profile/me/reviews"), null).andExpect(jsonPath("$[0].readAt").exists());
-        as(owner.getId(), get("/api/notifications?unreadOnly=true"), null).andExpect(jsonPath("$.items", hasSize(2)));
+        as(owner.getId(), get("/api/notifications?unreadOnly=true"), null).andExpect(jsonPath("$.items", hasSize(3)));
         as(actors.reader(), get("/api/notifications"), null)
                 .andExpect(jsonPath("$.items[?(@.type == 'COMPLAINT_UPHELD')].detail").value(contains("Проверено")));
         as(owner.getId(), put("/api/notifications/read-all"), null).andExpect(status().isNoContent());
@@ -178,6 +195,46 @@ class FrontendAdditionsIntegrationTest {
         as(owner.getId(), get("/api/notifications"), null)
                 .andExpect(jsonPath("$.items[?(@.type == 'ITEM_UNPUBLISHED')]", hasSize(2)))
                 .andExpect(jsonPath("$.items[?(@.type == 'ITEM_PUBLISHED')]", hasSize(1)));
+    }
+
+    @Test
+    void publicProfileShowsBioAndOnlyVisibleItemsOwnedByThatUser() throws Exception {
+        as(owner.getId(), put("/api/profile/me"), "{\"name\":\"Анна\",\"bio\":\"  Отдаю книги  \"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.profile.bio").value("Отдаю книги"));
+        as(owner.getId(), put("/api/profile/me"), "{\"name\":\"Анна\"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.profile.bio").value("Отдаю книги"));
+        mvc.perform(get("/api/profiles/{id}", owner.getId())).andExpect(jsonPath("$.bio").value("Отдаю книги"));
+
+        as(owner.getId(), post("/api/items"), "{\"title\":\"Мой черновик\"}").andExpect(status().isCreated());
+        Item hidden = fixtures.publishedItem(owner);
+        jdbc.update("update items set moderation_status = 'HIDDEN' where id = ?", hidden.getId());
+        fixtures.publishedItem(fixtures.user("another@example.com"));
+        mvc.perform(get("/api/profiles/{id}/items", owner.getId())).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items", hasSize(1)))
+                .andExpect(jsonPath("$.items[0].id").value(item.getId().toString()));
+        as(owner.getId(), put("/api/profile/me"), "{\"name\":\"Анна\",\"bio\":\" \"}")
+                .andExpect(status().isOk()).andExpect(jsonPath("$.profile.bio").doesNotExist());
+    }
+
+    @Test
+    void favoritesAndComplaintsNotifyOwnerWithoutRevealingReporter() throws Exception {
+        String favorite = "/api/profile/me/favorites/ITEMS/" + item.getId();
+        as(actors.reader(), put(favorite), null).andExpect(status().isNoContent());
+        as(actors.reader(), put(favorite), null).andExpect(status().isNoContent());
+        as(owner.getId(), put(favorite), null).andExpect(status().isNoContent());
+
+        as(actors.reader(), post("/api/complaints"), "{\"targetType\":\"ITEM\",\"targetId\":\"%s\",\"reason\":\"Приватная причина\"}"
+                .formatted(item.getId())).andExpect(status().isCreated());
+        as(actors.reader(), post("/api/complaints"), "{\"targetType\":\"PROFILE\",\"targetId\":\"%s\",\"reason\":\"Приватная причина\"}"
+                .formatted(owner.getId())).andExpect(status().isCreated());
+
+        as(owner.getId(), get("/api/notifications"), null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.unreadCount").value(3))
+                .andExpect(jsonPath("$.items[?(@.type == 'ITEM_FAVORITED')].entityId").value(contains(item.getId().toString())))
+                .andExpect(jsonPath("$.items[?(@.type == 'ITEM_REPORTED')].entityId").value(contains(item.getId().toString())))
+                .andExpect(jsonPath("$.items[?(@.type == 'PROFILE_REPORTED')].entityId").value(contains(owner.getId().toString())))
+                .andExpect(jsonPath("$.items[*].reporterId", hasSize(0)))
+                .andExpect(content().string(org.hamcrest.Matchers.not(containsString("Приватная причина"))));
     }
 
     private String requestTransfer() throws Exception {

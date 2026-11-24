@@ -71,6 +71,9 @@ public class User {
     @Column(length = 50)
     private String avatarContentType;
 
+    @Column(length = 1000)
+    private String bio;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -96,6 +99,10 @@ public class User {
 
     public void block() {
         blocked = true;
+    }
+
+    public void changeBio(String bio) {
+        this.bio = bio;
     }
 
     public void changeAvatar(String key, String contentType) {

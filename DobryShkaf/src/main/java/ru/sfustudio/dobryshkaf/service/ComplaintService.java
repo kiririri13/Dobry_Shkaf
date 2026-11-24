@@ -44,13 +44,14 @@ public class ComplaintService {
 
     @Transactional
     public Complaint create(TargetType type, UUID id, String reason, CurrentUser reporter) {
+        UUID reportedOwnerId = null;
         UUID chatId = switch (type) {
             case CHAT -> verifyParticipant(findChat(id), reporter.id());
             case MESSAGE -> verifyParticipant(messages.findById(id).map(ChatMessage::getChat)
                     .orElseThrow(ComplaintService::targetNotFound), reporter.id());
             case ITEM -> {
-                items.findById(id).filter(item -> item.isPublic() || item.isOwnedBy(reporter.id()))
-                        .orElseThrow(ComplaintService::targetNotFound);
+                reportedOwnerId = items.findById(id).filter(item -> item.isPublic() || item.isOwnedBy(reporter.id()))
+                        .orElseThrow(ComplaintService::targetNotFound).getOwner().getId();
                 yield null;
             }
             case POINT -> {
@@ -62,6 +63,7 @@ public class ComplaintService {
                 if (!users.existsById(id)) {
                     throw targetNotFound();
                 }
+                reportedOwnerId = id;
                 yield null;
             }
         };
@@ -70,6 +72,11 @@ public class ComplaintService {
                 values (?, ?, ?, ?, ?) returning *
                 """).params(type.name(), id, reason, reporter.id(), chatId).query(Complaint.class).single();
         notifications.create(reporter.id(), NotificationService.Type.COMPLAINT_SUBMITTED, complaint.id(), null);
+        if (reportedOwnerId != null && !reportedOwnerId.equals(reporter.id())) {
+            NotificationService.Type notification = type == TargetType.ITEM
+                    ? NotificationService.Type.ITEM_REPORTED : NotificationService.Type.PROFILE_REPORTED;
+            notifications.create(reportedOwnerId, notification, id, null);
+        }
         return complaint;
     }
 

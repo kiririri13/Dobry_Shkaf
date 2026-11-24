@@ -8,10 +8,10 @@ import java.util.UUID;
 
 /** Краткие данные вещи для списка чатов и передач. */
 public record ItemSummaryResponse(UUID id, String title, ItemStatus status, String photoUrl,
-                                  DeliveryMethod deliveryMethod) {
+                                  DeliveryMethod deliveryMethod, String size) {
 
     public static ItemSummaryResponse from(Item item) {
         String photoUrl = item.getPhotos().isEmpty() ? null : ItemPhotoResponse.from(item.getPhotos().getFirst()).url();
-        return new ItemSummaryResponse(item.getId(), item.getTitle(), item.getStatus(), photoUrl, item.getDeliveryMethod());
+        return new ItemSummaryResponse(item.getId(), item.getTitle(), item.getStatus(), photoUrl, item.getDeliveryMethod(), item.getSize());
     }
 }
