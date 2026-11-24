@@ -13,6 +13,10 @@ npm run dev
 
 Если Mailpit на Windows не отвечает по SMTP, добавьте переменную `MP_SMTP_DISABLE_RDNS: "true"` в `environment` сервиса `mailpit` в локальном переопределении Compose и перезапустите сервис.
 
+Тестовые пункты можно загрузить по инструкции backend. Карта и список используют одну выдачу и общие фильтры. Выбор района доступен без геолокации.
+
+Для Яндекс Карт задайте `NEXT_PUBLIC_YANDEX_MAPS_API_KEY` в `.env.local` и перезапустите фронтенд. Добавьте `localhost` и домен сайта в ограничение HTTP Referer ключа. JavaScript API загружается при открытии экрана с картой. Геопозицию предоставляет браузер.
+
 ```sh
 npm run typecheck
 npm run build

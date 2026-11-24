@@ -193,7 +193,7 @@ export async function api(path, { method = 'GET', json, form } = {}) {
 
 | Что показать | Откуда взять |
 |---|---|
-| Метка на карте | `latitude`, `longitude` (WGS 84, подходят для Яндекс Карт и Leaflet) |
+| Метка на карте | `latitude`, `longitude` (WGS 84, подходят для Яндекс Карт) |
 | Иконка метки | `type`: `EXCHANGE` — пункт обмена, `COLLECTION` — пункт приёма |
 | Приглушённая метка «Временно закрыт» | `temporarilyClosed === true` |
 | Подпись в списке | `name`, `address`, `district.name`, `hours` |

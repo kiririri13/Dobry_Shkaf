@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import type { User } from "@/lib/types";
 import RegisterFields, { PasswordField } from "./RegisterFields";
@@ -15,8 +15,21 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
   const [fields, setFields] = useState<Record<string, string>>({});
   const [email, setEmail] = useState("");
   const [notice, setNotice] = useState("");
+  const [rememberLogin, setRememberLogin] = useState(false);
+  const loginField = useRef<HTMLInputElement>(null);
   const { setUser } = useSession();
   const router = useRouter();
+
+  useEffect(() => {
+    if (register || !loginField.current) return;
+    try {
+      const saved = localStorage.getItem("dobry-login");
+      if (saved) {
+        loginField.current.value = saved;
+        setRememberLogin(true);
+      }
+    } catch {}
+  }, [register]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -39,15 +52,18 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
           setError("Пароль слишком длинный. Максимум — 72 байта.");
           return;
         }
-        const phone = String(data.get("phone")).trim();
         await api("/auth/register", {
           method: "POST",
-          json: { name: String(data.get("name")).trim(), email: login, password, ...(phone ? { phone } : {}) },
+          json: { name: String(data.get("name")).trim(), email: login, password },
         });
         setEmail(login);
         setNotice("Аккаунт создан. Подтвердите почту по ссылке из письма, затем войдите.");
       } else {
         await api<User>("/auth/login", { method: "POST", json: { login, password } });
+        try {
+          if (rememberLogin) localStorage.setItem("dobry-login", login);
+          else localStorage.removeItem("dobry-login");
+        } catch {}
         setUser(await api<User>("/auth/me"));
         const next = new URLSearchParams(window.location.search).get("next");
         router.replace(next && /^\/(?!\/)[^\x00-\x20\\]*$/.test(next) ? next : "/profile");
@@ -77,6 +93,10 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
   }
 
   return <section className={register ? "auth-layout auth-register" : "auth-layout"}>
+    {register && <p className="auth-register-signin">
+      <span>Уже есть аккаунт?</span>
+      <Link href="/login">Войти<img src="/design/register-signin-arrow.svg" alt="" /></Link>
+    </p>}
     <div className="auth-content">
       <Link href="/" className="brand"><img src="/design/brand.svg" alt="Добрый Шкаф" /></Link>
       <nav className="auth-tabs" aria-label="Доступ к аккаунту">
@@ -84,14 +104,24 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
         <Link href="/login" aria-current={register ? undefined : "page"}>Вход</Link>
       </nav>
       <h1>{register ? "Создайте аккаунт" : "С возвращением!"}</h1>
-      <p className="auth-intro">{register ? "Это займёт всего пару минут." : <>Рады видеть вас снова.<br />Войдите в аккаунт, чтобы продолжить.</>}</p>
+      <p className="auth-intro">{register ? <>Это займет всего пару минут.<br />Мы не передаём ваши данные третьим лицам.</> : <>Рады видеть вас снова.<br />Войдите в аккаунт, чтобы продолжить.</>}</p>
       <form onSubmit={submit}>
         <fieldset disabled={busy}>
           {register ? <RegisterFields /> : <>
-            <div className="auth-field"><img src="/design/mail.svg" alt="" /><input aria-label="Почта или телефон" placeholder="Почта или телефон" name="login" autoComplete="username" required /></div>
+            <div className="auth-field"><img src="/design/mail.svg" alt="" /><input ref={loginField} aria-label="Почта или телефон" placeholder="Электронная почта" name="login" autoComplete="username" required /></div>
             <PasswordField />
+            <div className="auth-options">
+              <label className="check"><input type="checkbox" checked={rememberLogin} onChange={(event) => setRememberLogin(event.target.checked)} />Запомнить логин</label>
+              <Link className="auth-forgot" href="/forgot-password">Забыли пароль?</Link>
+            </div>
           </>}
-          <button className="auth-submit">{busy ? "Подождите…" : register ? "Зарегистрироваться" : "Войти в аккаунт →"}</button>
+          <button className="auth-submit" aria-describedby={register ? "registration-terms" : undefined}>
+            {busy ? "Подождите…" : register ? "Зарегистрироваться" : "Войти в аккаунт"}
+          </button>
+          {register && <p className="auth-register-terms" id="registration-terms">
+            Нажимая «Зарегистрироваться», вы соглашаетесь с<br />
+            <a href="/rules" target="_blank" rel="noreferrer">правилами сервиса</a>.
+          </p>}
         </fieldset>
       </form>
       <RequestStatus error={error} />
@@ -100,13 +130,12 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
       </ul>}
       {notice && <p role="status">{notice}</p>}
       {email && <button className="secondary" disabled={busy} onClick={resend}>Отправить письмо ещё раз</button>}
-      {!register && <p className="auth-help"><Link href="/forgot-password">Забыли пароль?</Link></p>}
-      <p className="auth-switch">{register ? "Уже есть аккаунт?" : "Ещё нет аккаунта?"} <Link href={register ? "/login" : "/register"}>{register ? "Войти" : "Зарегистрироваться"}</Link></p>
+      {!register && <p className="auth-switch">Ещё нет аккаунта? <Link href="/register">Зарегистрироваться</Link></p>}
     </div>
     <aside className="auth-cover">
       <div>
         <p className="auth-slogan">Вещам<br /> нужна вторая<br /> <strong>жизнь</strong></p>
-        <p>Отдавайте ненужное, находите<br /> нужное, меняйте мир к лучшему</p>
+        <p>Отдавайте ненужное, находи<br /> нужное, меняй мир к лучшему</p>
       </div>
       <ul>
         <li><img src="/design/archive.svg" alt="" />Делись вещами с теми, кому они нужны</li>

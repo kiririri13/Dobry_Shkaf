@@ -1,54 +1,181 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import RequestStatus from "@/components/RequestStatus";
-import { PrivatePage, useSession } from "@/components/Session";
+import { PrivatePage } from "@/components/Session";
 import { api, errorMessage } from "@/lib/api";
 import { useData } from "@/lib/useData";
 import type { Chat, Review } from "@/lib/types";
 
 const filters = ["Все", "Объявления", "Сообщения", "Система", "Отзывы"] as const;
 type Filter = typeof filters[number];
+type Kind = Exclude<Filter, "Все">;
+
+const events = {
+  ITEM_PUBLISHED: ["Объявления", "Вы успешно добавили новое объявление", "/items/"],
+  ITEM_UNPUBLISHED: ["Объявления", "Ваше объявление снято с публикации", "/items/"],
+  ITEM_FAVORITED: ["Объявления", "Ваше объявление добавили в избранное", "/items/"],
+  ITEM_REVIEWED: ["Система", "Ваше объявление одобрено", "/items/"],
+  ITEM_HIDDEN: ["Система", "Ваше объявление скрыто", "/items/"],
+  ITEM_RESTORED: ["Система", "Ваше объявление восстановлено", "/items/"],
+  ACCOUNT_BLOCKED: ["Система", "Ваш аккаунт заблокирован"],
+  ITEM_REPORTED: ["Система", "На ваше объявление пожаловались", "/items/"],
+  PROFILE_REPORTED: ["Система", "На вас пожаловались"],
+  COMPLAINT_SUBMITTED: ["Система", "Ваша жалоба отправлена"],
+  COMPLAINT_UPHELD: ["Система", "Ваша жалоба удовлетворена"],
+  COMPLAINT_DISMISSED: ["Система", "Ваша жалоба отклонена"],
+  COMPLAINT_REOPENED: ["Система", "Вашу жалобу снова рассматривают"],
+  REVIEW_RECEIVED: ["Отзывы", "На ваш профиль добавлен новый отзыв"],
+  REVIEW_HIDDEN: ["Отзывы", "Ваш отзыв скрыт"],
+} as const satisfies Record<string, readonly [Kind, string, string?]>;
+
+type NotificationFeed = { items: NotificationEntry[]; unreadCount: number; hasMore: boolean };
+type NotificationEntry = {
+  id: string;
+  type: keyof typeof events;
+  entityId: string;
+  detail: string | null;
+  createdAt: string;
+  readAt: string | null;
+};
+
+type Notice = {
+  id: string;
+  kind: Kind;
+  title: string;
+  text: string | null;
+  time: string;
+  unread: boolean;
+  href?: string;
+  rating?: number;
+  alert?: boolean;
+};
+
+const icons = {
+  Объявления: ["listing", "box.svg"],
+  Сообщения: ["message", "notice-message.svg"],
+  Система: ["system", "notice-system.svg"],
+  Отзывы: ["review", "notice-review.svg"],
+} as const;
+
+const dateFormat = new Intl.DateTimeFormat("ru-RU", { dateStyle: "short" });
+const timeFormat = new Intl.DateTimeFormat("ru-RU", { timeStyle: "short" });
+
+function noticeTime(value: string) {
+  const date = new Date(value);
+  const formatted = dateFormat.format(date);
+  return (formatted === dateFormat.format(new Date()) ? "Сегодня" : formatted) + ", " + timeFormat.format(date);
+}
+
+function showEvent(entry: NotificationEntry, review?: Review): Notice {
+  const [kind, title, path] = events[entry.type] ?? ["Система", "Уведомление"];
+  return {
+    id: entry.id,
+    kind,
+    title,
+    text: entry.detail ?? review?.text ?? null,
+    time: entry.createdAt,
+    unread: !entry.readAt,
+    href: path ? path + encodeURIComponent(entry.entityId) : entry.type === "REVIEW_RECEIVED" ? "/profile?section=reviews"
+      : entry.type === "PROFILE_REPORTED" ? "/profile" : undefined,
+    rating: review?.rating,
+    alert: ["ITEM_HIDDEN", "ITEM_REPORTED", "PROFILE_REPORTED", "ACCOUNT_BLOCKED", "COMPLAINT_DISMISSED", "REVIEW_HIDDEN"].includes(entry.type),
+  };
+}
 
 export default function NotificationsPage() {
   return <PrivatePage><Notifications /></PrivatePage>;
 }
 
 function Notifications() {
-  const { user } = useSession();
+  const router = useRouter();
+  const feed = useData<NotificationFeed>("/notifications");
   const chats = useData<Chat[]>("/chats", 5000);
-  const reviews = useData<Review[]>(user ? "/profiles/" + encodeURIComponent(user.id) + "/reviews" : "");
+  const [older, setOlder] = useState<{ items: NotificationEntry[]; page: number; hasMore: boolean }>();
+  const [marked, setMarked] = useState<string[]>([]);
   const [filter, setFilter] = useState<Filter>("Все");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const unread = (chats.data ?? []).filter((chat) => chat.unreadCount > 0 && chat.lastMessage);
-  const recentReviews = reviews.data ?? [];
-  const counts = { Все: unread.length + recentReviews.length, Объявления: 0, Сообщения: unread.length, Система: 0, Отзывы: recentReviews.length };
-  const notices = [
-    ...unread.map((chat) => ({
-      id: chat.id, kind: "Сообщения", title: "Новое сообщение · " + chat.counterpart.name,
-      text: chat.lastMessage!.text, time: chat.lastMessage!.sentAt, href: "/messages/" + chat.id,
+  const unreadChats = (chats.data ?? []).flatMap((chat) => chat.unreadCount && chat.lastMessage
+    ? [{ id: chat.id, name: chat.counterpart.name, message: chat.lastMessage }] : []);
+  const entries = Array.from(new Map([...(feed.data?.items ?? []), ...(older?.items ?? [])].map((entry) => [entry.id, entry])).values());
+  const reviews = useData<Review[]>(entries.some((entry) => entry.type === "REVIEW_RECEIVED") ? "/profile/me/reviews" : "");
+  const notices: Notice[] = [
+    ...entries.map((entry) => {
+      const review = entry.type === "REVIEW_RECEIVED" ? reviews.data?.find(({ id }) => id === entry.entityId) : undefined;
+      const notice = showEvent(entry, review);
+      return marked.includes(entry.id) ? { ...notice, unread: false } : notice;
+    }),
+    ...unreadChats.map(({ id, name, message }): Notice => ({
+      id, kind: "Сообщения", title: "Вам написали новое сообщение", unread: true,
+      text: name + ": " + (message.text || message.attachment?.name || "Вложение"),
+      time: message.sentAt, href: "/messages/" + encodeURIComponent(id),
     })),
-    ...recentReviews.map((review) => ({
-      id: review.id, kind: "Отзывы", title: "Новый отзыв · " + review.rating + " из 5",
-      text: review.text, time: review.createdAt, href: null,
-    })),
-  ].filter((notice) => filter === "Все" || notice.kind === filter)
+  ];
+  const total = Math.max(0, (feed.data?.unreadCount ?? 0) - marked.length) + unreadChats.length;
+  const visible = notices.filter((notice) => filter === "Все" || notice.kind === filter)
     .sort((a, b) => Date.parse(b.time) - Date.parse(a.time));
-  const loading = filter === "Сообщения" ? chats.loading : filter === "Отзывы" ? reviews.loading : chats.loading || reviews.loading;
-  const loadError = filter === "Сообщения" ? chats.error : filter === "Отзывы" ? reviews.error : chats.error || reviews.error;
+  const loading = (filter !== "Сообщения" && feed.loading) || ((filter === "Все" || filter === "Сообщения") && chats.loading);
+  const loadError = (filter !== "Сообщения" && feed.error) || ((filter === "Все" || filter === "Сообщения") && chats.error) || undefined;
+  const hasMore = filter !== "Сообщения" && (older?.hasMore ?? feed.data?.hasMore);
 
-  async function markRead() {
+  function refresh() {
+    setOlder(undefined);
+    setMarked([]);
+    feed.reload();
+    chats.reload();
+  }
+
+  async function loadMore() {
     setBusy(true);
     setError("");
-    const results = await Promise.allSettled(unread.map((chat) => api("/chats/" + chat.id + "/read", {
-      method: "POST", json: { upToSeq: chat.lastMessage!.seq },
-    })));
-    const failure = results.find((result) => result.status === "rejected");
-    if (failure) setError(errorMessage(failure.reason));
-    chats.reload();
-    setBusy(false);
+    try {
+      const page = (older?.page ?? 0) + 1;
+      const result = await api<NotificationFeed>("/notifications?page=" + page);
+      setOlder({ page, hasMore: result.hasMore, items: [...(older?.items ?? []), ...result.items] });
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function openNotice(notice: Notice) {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api("/notifications/" + encodeURIComponent(notice.id) + "/read", { method: "PUT" });
+      setMarked((previous) => [...previous, notice.id]);
+      if (notice.href) router.push(notice.href);
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function markAll() {
+    setBusy(true);
+    setError("");
+    try {
+      const results = await Promise.allSettled([
+        api("/notifications/read-all", { method: "PUT" }),
+        api<Chat[]>("/chats").then(async (latestChats) => {
+          const chatResults = await Promise.allSettled(latestChats.flatMap(({ id, unreadCount, lastMessage }) => unreadCount && lastMessage
+            ? [api("/chats/" + encodeURIComponent(id) + "/read", { method: "POST", json: { upToSeq: lastMessage.seq } })] : []));
+          const failure = chatResults.find((result) => result.status === "rejected");
+          if (failure) throw failure.reason;
+        }),
+      ]);
+      const failure = results.find((result) => result.status === "rejected");
+      if (failure) setError(errorMessage(failure.reason));
+      refresh();
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <section className="notifications">
@@ -57,32 +184,44 @@ function Notifications() {
     <div className="actions notice-filters">
       {filters.map((name) => <button type="button" key={name} className={filter === name ? "" : "secondary"}
         aria-pressed={filter === name} onClick={() => setFilter(name)}>
-        {name} <span>{name === "Система" || name === "Объявления" ? "—" : counts[name]}</span>
+        {name} <span>{name === "Все" ? total : notices.filter((notice) => notice.kind === name && notice.unread).length}</span>
       </button>)}
     </div>
-    {filter === "Система" || filter === "Объявления" ? <p>Эти уведомления пока недоступны.</p> : <>
-    <RequestStatus loading={loading} error={loadError} retry={() => {
-      if (filter !== "Отзывы") chats.reload();
-      if (filter !== "Сообщения") reviews.reload();
-    }} />
+    <RequestStatus loading={loading} error={loadError} retry={refresh} />
     <RequestStatus error={error} />
-    {!loading && !loadError && notices.length === 0 && <p>Уведомлений пока нет.</p>}
+    {!loading && !loadError && visible.length === 0 && <p>{hasMore ? "В загруженных уведомлениях этой категории пока нет." : "Уведомлений пока нет."}</p>}
     <ul className="activity-list notice-list">
-      {notices.map((notice) => <li className={notice.href ? "notice notice-unread" : "notice"} key={notice.kind + notice.id}>
-        <span className={notice.href ? "notice-kind notice-kind-message" : "notice-kind notice-kind-review"}>{notice.kind}</span>
-        <span className={notice.href ? "notice-icon notice-message" : "notice-icon notice-review"}>
-          <img src={notice.href ? "/design/notice-message.svg" : "/design/notice-review.svg"} alt="" />
-        </span>
-        <div>
-          <h2>{notice.href ? <Link href={notice.href}>{notice.title}</Link> : notice.title}</h2>
-          {notice.text && <p>{notice.text}</p>}
-        </div>
-        <time dateTime={notice.time}>{new Date(notice.time).toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" })}</time>
-      </li>)}
+      {visible.map((notice) => {
+        const [icon, asset] = icons[notice.kind];
+        const title = <>{notice.title}{notice.href && <img className="notice-arrow" src="/design/notice-arrow.svg" alt="" />}</>;
+        return <li className={"notice" + (notice.unread ? " notice-unread" : "") + (notice.alert ? " notice-alert" : "")} key={notice.kind + notice.id}>
+          <span className={"notice-kind notice-kind-" + icon}>{notice.kind}</span>
+          <span className={"notice-icon notice-" + icon}><img src={"/design/" + asset} alt="" /></span>
+          <div className="notice-content">
+            <div className="notice-heading">
+              <h2>
+                {notice.href ? <Link href={notice.href} onNavigate={notice.kind !== "Сообщения" && notice.unread ? (event) => {
+                  event.preventDefault();
+                  void openNotice(notice);
+                } : undefined}>{title}</Link>
+                  : notice.unread ? <button type="button" disabled={busy} onClick={() => openNotice(notice)}>
+                    {title}<span className="visually-hidden"> — отметить прочитанным</span>
+                  </button> : title}
+              </h2>
+              {notice.rating !== undefined && <span className="notice-rating">
+                <span className="visually-hidden">{notice.rating} из 5</span>
+                {Array.from({ length: notice.rating }, (_, index) => <img key={index} src="/design/notice-rating-star.svg" alt="" />)}
+              </span>}
+            </div>
+            {notice.text && <p>{notice.text}</p>}
+          </div>
+          <time dateTime={notice.time}>{noticeTime(notice.time)}</time>
+        </li>;
+      })}
     </ul>
-    {unread.length > 0 && filter !== "Отзывы" && <button className="secondary" type="button" disabled={busy} onClick={markRead}>
-      Отметить сообщения как прочитанные
-    </button>}
-    </>}
+    <div className="actions notice-actions">
+      {total > 0 && <button className="secondary notice-mark-read" type="button" disabled={busy} onClick={markAll}>Отметить все как прочитанные</button>}
+      {hasMore && <button className="secondary notice-mark-read" type="button" disabled={busy} onClick={loadMore}>Показать еще</button>}
+    </div>
   </section>;
 }

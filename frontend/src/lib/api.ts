@@ -9,7 +9,7 @@ export class ApiError extends Error {
   }
 }
 
-type Options = { method?: string; json?: unknown; signal?: AbortSignal };
+type Options = { method?: string; json?: unknown; form?: FormData; signal?: AbortSignal };
 
 function csrfToken() {
   const cookie = document.cookie.split("; ").find((value) => value.startsWith("XSRF-TOKEN="));
@@ -17,7 +17,7 @@ function csrfToken() {
 }
 
 export async function api<T = void>(path: string, options: Options = {}): Promise<T> {
-  const { method = "GET", json, signal } = options;
+  const { method = "GET", json, form, signal } = options;
   const headers = new Headers();
   const publicPost = ["/auth/login", "/auth/register", "/auth/resend-confirmation",
     "/auth/password-reset", "/auth/password-reset/confirm"].includes(path);
@@ -29,7 +29,7 @@ export async function api<T = void>(path: string, options: Options = {}): Promis
 
   const response = await fetch("/api" + path, {
     method, headers, signal, credentials: "same-origin", cache: "no-store",
-    body: json !== undefined ? JSON.stringify(json) : undefined,
+    body: json !== undefined ? JSON.stringify(json) : form,
   });
   const body = response.headers.get("content-type")?.includes("json")
     ? await response.json().catch(() => null)

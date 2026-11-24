@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Navigation from "@/components/Navigation";
 import { Session } from "@/components/Session";
+import "@yandex/ymaps3-default-ui-theme/dist/esm/index.css";
 import "./globals.css";
 
 export const metadata = { title: "Добрый шкаф", description: "Сервис бесплатной передачи вещей" };

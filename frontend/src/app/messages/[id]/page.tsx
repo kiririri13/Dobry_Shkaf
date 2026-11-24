@@ -1,7 +1,6 @@
-import ChatThread from "@/components/ChatThread";
-import { PrivatePage } from "@/components/Session";
+import MessagesLayout from "@/components/MessagesLayout";
 
 export default async function ChatPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <PrivatePage><ChatThread key={id} id={id} /></PrivatePage>;
+  return <MessagesLayout id={id} />;
 }

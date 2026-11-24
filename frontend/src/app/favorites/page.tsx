@@ -40,9 +40,9 @@ function FavoriteList() {
 
   return <section className="favorites">
     <div className="section-head">
-      <div><h1>Избранное</h1><p>Ваши сохранённые {type === "ITEMS" ? "объявления" : "пункты приёма"}</p></div>
+      <div><h1>Избранное</h1><p>Ваши сохраненные {type === "ITEMS" ? "объявления" : "пункты приёма"}</p></div>
       <button className="secondary favorite-clear" type="button" onClick={clear} disabled={!visible?.length || clearing}>
-        <img src="/design/favorite-trash.png" alt="" />Убрать всё
+        <img src="/design/favorite-trash.png" alt="" />Убрать все
       </button>
     </div>
     {Boolean(favorites.data?.points.length) && <div className="profile-tabs">
@@ -54,13 +54,13 @@ function FavoriteList() {
     {visible?.length === 0 && <p className="activity-heading">Здесь пока ничего нет.</p>}
     <div className="cards favorite-cards">
       {visible?.map((card) => <article className="card" key={type + card.id}>
-        {"photo" in card && <Link className="card-image" href={card.href}>
-          {card.photo ? <img src={card.photo} alt={card.title} /> : <span>Без фото</span>}
+        {"photo" in card && <Link className="card-image" href={card.href} aria-label={card.title}>
+          {card.photo && <img src={card.photo} alt="" />}
         </Link>}
         <div className="card-body">
           <h2><Link href={card.href}>{card.title}</Link></h2>
           {"address" in card ? <p>{card.address}</p> : <>
-            {card.district && <p>{card.district}</p>}
+            {card.district && <p><img src="/design/pin.svg" alt="" />{card.district}</p>}
             {card.size && <p>Размер: {card.size}</p>}
           </>}
           <FavoriteButton id={card.id} type={type} compact saved disabled={clearing}

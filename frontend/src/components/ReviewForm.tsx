@@ -4,10 +4,14 @@ import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import { api, ApiError, errorMessage } from "@/lib/api";
 import { useData } from "@/lib/useData";
-import type { District, Review, Transfer } from "@/lib/types";
+import { deliveryMethods } from "@/lib/deliveryMethods";
+import type { Profile, Review, Transfer } from "@/lib/types";
 import RequestStatus from "./RequestStatus";
+import ReviewSummary from "./ReviewSummary";
+import { profileSections } from "./ProfileTabs";
 
 const ratings = [1, 2, 3, 4, 5];
+const commentLimit = 100;
 
 export default function ReviewForm({ id }: { id: string }) {
   const path = "/transfers/" + encodeURIComponent(id);
@@ -18,14 +22,16 @@ export default function ReviewForm({ id }: { id: string }) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState("");
   const data = transfer.data;
+  const method = data?.item.deliveryMethod ? deliveryMethods[data.item.deliveryMethod] : undefined;
   const recipient = data && (data.myRole === "GIVER" ? data.receiver : data.giver);
   const profilePath = recipient ? "/profiles/" + encodeURIComponent(recipient.id) : "";
-  const profile = useData<{ district: District | null; rating: number | null; completedTransfers: number }>(profilePath);
+  const profile = useData<Profile>(profilePath);
   const reviews = useData<Review[]>(profilePath ? profilePath + "/reviews" : "");
   const back = "/profile" + path;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (busy || !rating) return;
     setBusy(true);
     setError("");
     try {
@@ -51,60 +57,59 @@ export default function ReviewForm({ id }: { id: string }) {
       <div className="profile">
         <div className="profile-cover" />
         <div className="profile-info">
-          <div className="profile-avatar" aria-hidden="true">{recipient.name.trim().charAt(0).toUpperCase()}</div>
-          <div className="profile-name"><h1>{recipient.name}</h1><p>{profile.data?.district?.name}</p></div>
+          <div className="profile-avatar" aria-hidden="true">{profile.data?.avatarUrl && <img src={profile.data.avatarUrl} alt="" />}</div>
+          <div className="profile-name"><h1>{recipient.name}</h1>
+            {profile.data?.district && <p className="profile-district"><img src="/design/pin.svg" alt="" />
+              {profile.data.district.name}, {profile.data.district.city}
+            </p>}
+          </div>
         </div>
-        <dl className="review-stats">
-          <div><dt>Передачи</dt><dd>{profile.data?.completedTransfers ?? "—"}</dd></div>
-          <div><dt>Рейтинг</dt><dd>{profile.data?.rating?.toFixed(1) ?? "—"}</dd></div>
+        <dl className="profile-stats">
+          <div><img src="/design/profile-listings.svg" alt="" /><dt>Выложено вещей</dt><dd>—</dd></div>
+          <div><img src="/design/profile-given.svg" alt="" /><dt>Передачи</dt><dd>{profile.data?.completedTransfers ?? "—"}</dd></div>
+          <div><img src="/design/profile-rating.svg" alt="" /><dt>Рейтинг</dt><dd>{profile.data?.rating?.toFixed(1) ?? "—"}</dd></div>
+          <div><img src="/design/profile-reviews.svg" alt="" /><dt>Отзывов</dt><dd>{reviews.data?.length === 20 ? "20+" : reviews.data?.length ?? "—"}</dd></div>
         </dl>
       </div>
-      <h2 className="review-heading">Отзывы</h2>
+      <nav className="profile-tabs review-form-tabs" aria-label="Разделы профиля">
+        {["items", "history", "reviews", "eco"].map((section, index) => <Link
+          key={section} href={profilePath + "?section=" + section} aria-current={index === 2 ? "page" : undefined}>
+          {index === 0 ? "Объявления пользователя" : profileSections[index]}
+        </Link>)}
+      </nav>
       <RequestStatus loading={profile.loading || reviews.loading} error={profile.error || reviews.error}
         retry={() => { profile.reload(); reviews.reload(); }} />
-      {reviews.data && <div className="review-summary">
-        <div className="panel">
-          <h2>Общая оценка</h2><p className="profile-rating-value">{profile.data?.rating?.toFixed(1) ?? "—"}</p>
-        </div>
-        <ul className="activity-list">
-          {reviews.data.length === 0 && <li className="panel">Отзывов пока нет.</li>}
-          {reviews.data.map((review) => <li className="panel" key={review.id}>
-            <p className="review-score" aria-label={review.rating + " из 5"}>{"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}</p>
-            <time dateTime={review.createdAt}>{new Date(review.createdAt).toLocaleDateString("ru-RU")}</time>
-            {review.text && <p>{review.text}</p>}
-          </li>)}
-        </ul>
-      </div>}
+      {reviews.data && <ReviewSummary rating={profile.data?.rating} reviews={reviews.data} />}
       {data.status !== "COMPLETED" ? <p>Отзыв можно оставить после завершения передачи.</p>
         : notice ? <p role="status">{notice}</p>
-        : <form onSubmit={submit}>
+        : <form className="review-compose" onSubmit={submit}>
           <fieldset className="panel review-fields" disabled={busy}>
-            <fieldset>
+            <fieldset className="review-rating">
               <legend>Оценка</legend>
               <div className="review-stars">
                 {ratings.map((value) => <label key={value}>
                   <input type="radio" name="rating" value={value} aria-label={value + " из 5"} required
                     checked={rating === value} onChange={() => setRating(value)} />
-                  <span aria-hidden="true" className={value <= rating ? "selected" : ""}>★</span>
+                  <img src="/design/review-star.svg" className={value > rating ? "review-star-empty" : undefined} alt="" />
                 </label>)}
                 <output>{rating.toFixed(1)}</output>
               </div>
             </fieldset>
-            <label>Ваш отзыв
-              <textarea name="text" rows={4} maxLength={100} value={comment}
-                onChange={(event) => setComment(event.target.value)}
-                placeholder="Поделитесь впечатлением о взаимодействии с пользователем..." />
-              <span className="review-counter">{comment.length}/100</span>
-            </label>
-            <fieldset disabled title="Способ передачи пока нельзя сохранить">
-              <legend>Способ передачи</legend>
-              <div className="actions review-method">
-                <button type="button" className="secondary"><img src="/design/review-repeat.png" alt="" />Обменял</button>
-                <button type="button" className="secondary"><img src="/design/review-gift.png" alt="" />Забрал</button>
+            <div className="review-comment">
+              <label htmlFor="review-text">Ваш отзыв</label>
+              <div className="review-input">
+                <textarea id="review-text" name="text" rows={4} maxLength={commentLimit} value={comment}
+                  aria-describedby="review-counter" onChange={(event) => setComment(event.target.value)}
+                  placeholder="Поделитесь впечатлением о взаимодействии с пользователем..." />
+                <span className="review-counter" id="review-counter">{comment.length}/{commentLimit}</span>
               </div>
-            </fieldset>
+            </div>
+            {method && <dl className="review-method">
+              <dt>Способ передачи</dt>
+              <dd><img src={"/design/" + method.icon} alt="" />{method.label}</dd>
+            </dl>}
           </fieldset>
-          <div className="section-head review-actions">
+          <div className="review-actions">
             <Link className="button secondary" href={back}>Отмена</Link>
             <button disabled={busy}>{busy ? "Отправляем…" : "Опубликовать"}</button>
           </div>
