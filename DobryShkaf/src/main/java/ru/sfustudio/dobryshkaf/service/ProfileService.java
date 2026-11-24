@@ -4,7 +4,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import ru.sfustudio.dobryshkaf.domain.DeliveryMethod;
 import ru.sfustudio.dobryshkaf.domain.Item;
+import ru.sfustudio.dobryshkaf.domain.TransferRole;
 import ru.sfustudio.dobryshkaf.domain.PointStatus;
 import ru.sfustudio.dobryshkaf.domain.User;
 import ru.sfustudio.dobryshkaf.dto.DistrictResponse;
@@ -18,6 +21,9 @@ import ru.sfustudio.dobryshkaf.repository.ItemRepository;
 import ru.sfustudio.dobryshkaf.repository.UserRepository;
 
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,6 +40,7 @@ public class ProfileService {
     private final TransferService transfers;
     private final JdbcClient jdbc;
     private final ActiveAccounts accounts;
+    private final MediaFiles mediaFiles;
 
     public PrivateProfile me(CurrentUser viewer) {
         User user = findUser(viewer.id());
@@ -52,6 +59,54 @@ public class ProfileService {
                 .orElseThrow(() -> new FieldValidationException("VALIDATION_FAILED", "Проверьте район",
                         Map.of("districtId", "Район не найден"))));
         return new PrivateProfile(publicProfile(user), user.getEmail(), user.getPhone());
+    }
+
+    @Transactional
+    public PublicProfile setAvatar(CurrentUser viewer, MultipartFile file) {
+        User user = accounts.lockActive(viewer);
+        byte[] bytes = mediaFiles.imageBytes(file);
+        ImageFormat format = mediaFiles.imageFormat(bytes);
+        String key = "avatars/%s/%s.%s".formatted(user.getId(), UUID.randomUUID(), format.getExtension());
+        String previous = user.getAvatarKey();
+        mediaFiles.put(key, bytes, format.getContentType());
+        user.changeAvatar(key, format.getContentType());
+        mediaFiles.deleteAfterCommit(previous);
+        return publicProfile(user);
+    }
+
+    @Transactional
+    public void removeAvatar(CurrentUser viewer) {
+        User user = accounts.lockActive(viewer);
+        mediaFiles.deleteAfterCommit(user.getAvatarKey());
+        user.changeAvatar(null, null);
+    }
+
+    @Transactional
+    public StoredPhoto avatar(UUID id) {
+        // Блокировка на чтение не даёт заменить и удалить файл до окончания запроса.
+        User user = users.findForShareById(id).orElseThrow(() -> new NotFoundException("Профиль не найден"));
+        if (user.getAvatarKey() == null) {
+            throw new NotFoundException("Аватар не найден");
+        }
+        return new StoredPhoto(mediaFiles.get(user.getAvatarKey()), user.getAvatarContentType());
+    }
+
+    public PublicHistory history(UUID id, int page) {
+        if (!users.existsById(id)) {
+            throw new NotFoundException("Профиль не найден");
+        }
+        int pageSize = 20;
+        List<HistoryEntry> entries = jdbc.sql("""
+                select t.id, i.id as item_id, i.title, i.delivery_method, t.completed_at,
+                       case when t.giver_id = :user then 'GIVER' else 'RECEIVER' end as role
+                from transfers t join items i on i.id = t.item_id
+                where t.status = 'COMPLETED' and i.moderation_status <> 'HIDDEN'
+                    and (t.giver_id = :user or t.receiver_id = :user)
+                order by t.completed_at desc, t.id desc limit :limit offset :offset
+                """).param("user", id).param("limit", pageSize + 1).param("offset", (long) pageSize * page)
+                .query(HistoryEntry.class).list();
+        boolean hasMore = entries.size() > pageSize;
+        return new PublicHistory(hasMore ? entries.subList(0, pageSize) : entries, page, hasMore);
     }
 
     public Favorites favorites(CurrentUser viewer) {
@@ -96,13 +151,22 @@ public class ProfileService {
     }
 
     private PublicProfile publicProfile(User user) {
+        String avatarUrl = user.getAvatarKey() == null ? null : "/api/profiles/" + user.getId() + "/avatar";
         return new PublicProfile(user.getId(), user.getName(),
                 user.getDistrict() == null ? null : DistrictResponse.from(user.getDistrict()),
-                user.getRating(), transfers.countCompleted(user.getId()));
+                user.getRating(), transfers.countCompleted(user.getId()), user.getCreatedAt(),
+                user.getCreatedAt().atOffset(ZoneOffset.UTC).getYear(), avatarUrl);
     }
 
     public record PublicProfile(UUID id, String name, DistrictResponse district, BigDecimal rating,
-                                long completedTransfers) {
+                                long completedTransfers, Instant registeredAt, int memberSinceYear, String avatarUrl) {
+    }
+
+    public record HistoryEntry(UUID id, UUID itemId, String title, DeliveryMethod deliveryMethod,
+                               OffsetDateTime completedAt, TransferRole role) {
+    }
+
+    public record PublicHistory(List<HistoryEntry> items, int page, boolean hasMore) {
     }
 
     public record PrivateProfile(PublicProfile profile, String email, String phone) {

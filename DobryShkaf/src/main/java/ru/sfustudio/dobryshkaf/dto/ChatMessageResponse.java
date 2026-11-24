@@ -1,5 +1,6 @@
 package ru.sfustudio.dobryshkaf.dto;
 
+import ru.sfustudio.dobryshkaf.domain.ChatAttachment;
 import ru.sfustudio.dobryshkaf.domain.ChatMessage;
 
 import java.time.Instant;
@@ -16,10 +17,14 @@ public record ChatMessageResponse(
         String text,
         UUID requestId,
         Instant sentAt,
-        Instant readAt
+        Instant readAt,
+        Attachment attachment
 ) {
 
     public static ChatMessageResponse from(ChatMessage message) {
+        ChatAttachment file = message.getAttachment();
+        Attachment attachment = file == null ? null : new Attachment(file.name(), file.sizeBytes(),
+                "/api/chats/%s/messages/%s/attachment".formatted(message.getChat().getId(), message.getId()));
         return new ChatMessageResponse(
                 message.getId(),
                 message.getChat().getId(),
@@ -28,6 +33,10 @@ public record ChatMessageResponse(
                 message.getText(),
                 message.getRequestId(),
                 message.getCreatedAt(),
-                message.getReadAt());
+                message.getReadAt(),
+                attachment);
+    }
+
+    public record Attachment(String name, int sizeBytes, String url) {
     }
 }

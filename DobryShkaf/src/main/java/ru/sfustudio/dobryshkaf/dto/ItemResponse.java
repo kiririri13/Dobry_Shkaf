@@ -1,5 +1,6 @@
 package ru.sfustudio.dobryshkaf.dto;
 
+import ru.sfustudio.dobryshkaf.domain.DeliveryMethod;
 import ru.sfustudio.dobryshkaf.domain.Item;
 import ru.sfustudio.dobryshkaf.domain.ItemCondition;
 import ru.sfustudio.dobryshkaf.domain.ItemStatus;
@@ -16,6 +17,7 @@ public record ItemResponse(
         ItemCondition condition,
         String size,
         ItemStatus status,
+        DeliveryMethod deliveryMethod,
         ItemModerationStatus moderationStatus,
         CategoryResponse category,
         DistrictResponse district,
@@ -34,6 +36,7 @@ public record ItemResponse(
                 item.getCondition(),
                 item.getSize(),
                 item.getStatus(),
+                item.getDeliveryMethod(),
                 item.getModerationStatus(),
                 item.getCategory() == null ? null : CategoryResponse.from(item.getCategory()),
                 item.getDistrict() == null ? null : DistrictResponse.from(item.getDistrict()),

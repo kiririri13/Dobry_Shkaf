@@ -80,6 +80,10 @@ public class Item {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
+    private DeliveryMethod deliveryMethod = DeliveryMethod.FREE;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
     private ItemModerationStatus moderationStatus = ItemModerationStatus.PENDING;
 
     @OneToMany(mappedBy = "item", cascade = CascadeType.ALL, orphanRemoval = true)
@@ -146,6 +150,11 @@ public class Item {
     public void close() {
         requireEditable();
         status = ItemStatus.CLOSED;
+    }
+
+    public void changeDeliveryMethod(DeliveryMethod deliveryMethod) {
+        requireEditable();
+        this.deliveryMethod = Objects.requireNonNull(deliveryMethod);
     }
 
     public void reopen(Instant now) {

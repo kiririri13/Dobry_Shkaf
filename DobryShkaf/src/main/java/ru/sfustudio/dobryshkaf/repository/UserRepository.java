@@ -17,6 +17,10 @@ public interface UserRepository extends JpaRepository<User, UUID> {
     @Query("select u from User u where u.id = :id")
     Optional<User> findForUpdateById(UUID id);
 
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select u from User u where u.id = :id")
+    Optional<User> findForShareById(UUID id);
+
     boolean existsByIdAndBlockedFalseAndRoleIn(UUID id, Collection<UserRole> roles);
 
     Optional<User> findByEmailIgnoreCase(String email);

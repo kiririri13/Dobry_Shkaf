@@ -1,13 +1,10 @@
 package ru.sfustudio.dobryshkaf.service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 import ru.sfustudio.dobryshkaf.domain.Category;
 import ru.sfustudio.dobryshkaf.domain.District;
@@ -26,10 +23,7 @@ import ru.sfustudio.dobryshkaf.repository.CategoryRepository;
 import ru.sfustudio.dobryshkaf.repository.DistrictRepository;
 import ru.sfustudio.dobryshkaf.repository.ItemPhotoRepository;
 import ru.sfustudio.dobryshkaf.repository.ItemRepository;
-import ru.sfustudio.dobryshkaf.storage.PhotoStorage;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -39,11 +33,9 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class ItemService {
 
     public static final int PAGE_SIZE = 20;
-    static final int MAX_PHOTO_BYTES = 5 * 1024 * 1024;
 
     private static final Map<String, String> PUBLICATION_MESSAGES = Map.of(
             "description", "Добавьте описание",
@@ -57,10 +49,11 @@ public class ItemService {
     private final ItemPhotoRepository itemPhotoRepository;
     private final CategoryRepository categoryRepository;
     private final DistrictRepository districtRepository;
-    private final PhotoStorage photoStorage;
+    private final MediaFiles mediaFiles;
     private final TransferService transferService;
     private final ActiveAccounts accounts;
     private final EcoService eco;
+    private final NotificationService notifications;
 
     @Transactional(readOnly = true)
     public PageResponse<ItemResponse> search(ItemFilter filter, Optional<CurrentUser> viewer) {
@@ -100,6 +93,7 @@ public class ItemService {
             requireComplete(item);
         }
         item.publish(Instant.now());
+        notifications.item(item, NotificationService.Type.ITEM_PUBLISHED, null);
         return respond(item);
     }
 
@@ -115,6 +109,7 @@ public class ItemService {
         transferService.rejectOpenRequests(item, user.id());
         if (published) {
             eco.credit(item);
+            notifications.item(item, NotificationService.Type.ITEM_UNPUBLISHED, null);
         }
         return respond(item);
     }
@@ -128,6 +123,9 @@ public class ItemService {
         requireComplete(item);
         item.reopen(Instant.now());
         eco.deactivate(id);
+        if (item.isPublic()) {
+            notifications.item(item, NotificationService.Type.ITEM_PUBLISHED, null);
+        }
         return respond(item);
     }
 
@@ -141,16 +139,12 @@ public class ItemService {
             throw new InvalidPhotoException("PHOTO_LIMIT_REACHED",
                     "Можно добавить не больше %d фото".formatted(Item.MAX_PHOTOS));
         }
-        byte[] content = readPhoto(file);
-        ImageFormat format = ImageFormat.detect(content)
-                .orElseThrow(() -> new InvalidPhotoException("UNSUPPORTED_PHOTO_FORMAT",
-                        "Поддерживаются только фото в форматах JPEG, PNG и WebP"));
+        byte[] content = mediaFiles.imageBytes(file);
+        ImageFormat format = mediaFiles.imageFormat(content);
 
         String key = "items/%s/%s.%s".formatted(item.getId(), UUID.randomUUID(), format.getExtension());
         item.addPhoto(key, format.getContentType(), content.length);
-        photoStorage.put(key, content, format.getContentType());
-        // Если транзакция не зафиксируется, файл без записи в БД никому не нужен
-        runAfterRollback(() -> deleteQuietly(key));
+        mediaFiles.put(key, content, format.getContentType());
         return respond(item);
     }
 
@@ -168,8 +162,7 @@ public class ItemService {
         item.removePhoto(photo);
         requireCompleteIfPublished(item);
         // Файл удаляем только после фиксации: при откате запись о фото останется и должна указывать на файл
-        String key = photo.getStorageKey();
-        runAfterCommit(() -> deleteQuietly(key));
+        mediaFiles.deleteAfterCommit(photo.getStorageKey());
         return respond(item);
     }
 
@@ -178,7 +171,7 @@ public class ItemService {
         ItemPhoto photo = itemPhotoRepository.findWithItemById(photoId)
                 .filter(found -> canView(found.getItem(), viewer))
                 .orElseThrow(() -> new NotFoundException("Фото не найдено"));
-        return new StoredPhoto(photoStorage.get(photo.getStorageKey()), photo.getContentType());
+        return new StoredPhoto(mediaFiles.get(photo.getStorageKey()), photo.getContentType());
     }
 
     private Item findVisible(UUID id, Optional<CurrentUser> viewer) {
@@ -214,6 +207,9 @@ public class ItemService {
                 trimToNull(request.size()),
                 category(request.categoryId()),
                 district(request.districtId()));
+        if (request.deliveryMethod() != null) {
+            item.changeDeliveryMethod(request.deliveryMethod());
+        }
     }
 
     private Category category(UUID id) {
@@ -246,20 +242,6 @@ public class ItemService {
         }
     }
 
-    private static byte[] readPhoto(MultipartFile file) {
-        if (file.isEmpty()) {
-            throw new InvalidPhotoException("EMPTY_PHOTO", "Файл пустой");
-        }
-        if (file.getSize() > MAX_PHOTO_BYTES) {
-            throw photoTooLarge();
-        }
-        try {
-            return file.getBytes();
-        } catch (IOException ex) {
-            throw new UncheckedIOException("Failed to read uploaded photo", ex);
-        }
-    }
-
     public static InvalidPhotoException photoTooLarge() {
         return new InvalidPhotoException("PHOTO_TOO_LARGE", "Фото должно быть не больше 5 МБ");
     }
@@ -268,34 +250,6 @@ public class ItemService {
         // Время создания и изменения Hibernate проставляет при записи в БД
         itemRepository.flush();
         return ItemResponse.from(item);
-    }
-
-    private void deleteQuietly(String key) {
-        try {
-            photoStorage.delete(key);
-        } catch (RuntimeException ex) {
-            log.warn("failed_delete_photo key={}", key, ex);
-        }
-    }
-
-    private static void runAfterCommit(Runnable action) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                action.run();
-            }
-        });
-    }
-
-    private static void runAfterRollback(Runnable action) {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status == STATUS_ROLLED_BACK) {
-                    action.run();
-                }
-            }
-        });
     }
 
     private static NotFoundException itemNotFound() {

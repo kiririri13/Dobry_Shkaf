@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import jakarta.servlet.http.HttpServletRequest;
 import ru.sfustudio.dobryshkaf.dto.ErrorResponse;
 import ru.sfustudio.dobryshkaf.exception.AuthenticationRequiredException;
 import ru.sfustudio.dobryshkaf.exception.ConflictException;
@@ -68,7 +69,10 @@ public class GlobalExceptionHandler {
     // Tomcat отклоняет слишком большой файл ещё до контроллера; ответ тот же, что и при проверке в сервисе
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ErrorResponse handleUploadTooLarge() {
+    public ErrorResponse handleUploadTooLarge(HttpServletRequest request) {
+        if (request.getRequestURI().endsWith("/messages/attachments")) {
+            return ErrorResponse.of("ATTACHMENT_TOO_LARGE", "Вложение должно быть не больше 5 МБ");
+        }
         InvalidPhotoException ex = ItemService.photoTooLarge();
         return ErrorResponse.of(ex.getCode(), ex.getMessage());
     }

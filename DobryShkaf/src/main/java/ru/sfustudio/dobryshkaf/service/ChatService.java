@@ -4,8 +4,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.http.MediaType;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import ru.sfustudio.dobryshkaf.domain.Chat;
+import ru.sfustudio.dobryshkaf.domain.ChatAttachment;
 import ru.sfustudio.dobryshkaf.domain.ChatMessage;
 import ru.sfustudio.dobryshkaf.domain.Item;
 import ru.sfustudio.dobryshkaf.domain.Transfer;
@@ -48,6 +51,7 @@ public class ChatService {
     private final UserRepository userRepository;
     private final ApplicationEventPublisher events;
     private final ActiveAccounts accounts;
+    private final MediaFiles mediaFiles;
 
     /** Один диалог на пару «объявление и пользователь»: повторное открытие возвращает существующий. */
     @Transactional
@@ -120,16 +124,28 @@ public class ChatService {
     /** Повтор с тем же requestId возвращает уже сохранённое сообщение и не рассылает его второй раз. */
     @Transactional
     public CommandResult<ChatMessageResponse> send(UUID chatId, SendMessageRequest request, CurrentUser user) {
+        return send(chatId, request.text(), request.requestId(), null, user);
+    }
+
+    @Transactional
+    public CommandResult<ChatMessageResponse> sendAttachment(UUID chatId, String text, UUID requestId,
+                                                             MultipartFile file, CurrentUser user) {
+        return send(chatId, text, requestId, file, user);
+    }
+
+    private CommandResult<ChatMessageResponse> send(UUID chatId, String text, UUID requestId,
+                                                    MultipartFile file, CurrentUser user) {
         User sender = accounts.lockActive(user);
         Chat chat = chatRepository.findForUpdateById(chatId).orElseThrow(ChatService::chatNotFound);
         requireParticipant(chat, user);
         Optional<ChatMessage> repeated =
-                messageRepository.findByChatIdAndSenderIdAndRequestId(chatId, user.id(), request.requestId());
+                messageRepository.findByChatIdAndSenderIdAndRequestId(chatId, user.id(), requestId);
         if (repeated.isPresent()) {
             return new CommandResult<>(ChatMessageResponse.from(repeated.get()), false);
         }
 
-        ChatMessage message = messageRepository.save(ChatMessage.send(chat, sender, request.text(), request.requestId()));
+        ChatAttachment attachment = file == null ? null : storeAttachment(chatId, file);
+        ChatMessage message = messageRepository.save(ChatMessage.send(chat, sender, text, requestId, attachment));
         messageRepository.flush();
         ChatMessageResponse response = ChatMessageResponse.from(message);
         publish(chatId, ChatEventType.MESSAGE_CREATED, response);
@@ -139,6 +155,37 @@ public class ChatService {
             events.publishEvent(new ListingMessageReceived(chatId, owner.getEmail(), item.getTitle(), sender.getName()));
         }
         return new CommandResult<>(response, true);
+    }
+
+    @Transactional(readOnly = true)
+    public DownloadedAttachment attachment(UUID chatId, UUID messageId, CurrentUser viewer) {
+        findAccessible(chatId, viewer);
+        ChatAttachment attachment = messageRepository.findById(messageId)
+                .filter(message -> message.getChat().getId().equals(chatId))
+                .map(ChatMessage::getAttachment)
+                .orElseThrow(() -> new NotFoundException("Вложение не найдено"));
+        return new DownloadedAttachment(attachment.name(), mediaFiles.get(attachment.key()));
+    }
+
+    private ChatAttachment storeAttachment(UUID chatId, MultipartFile file) {
+        byte[] bytes = mediaFiles.attachmentBytes(file);
+        String key = "chats/%s/%s".formatted(chatId, UUID.randomUUID());
+        String name = file.getOriginalFilename();
+        if (name != null) {
+            name = name.replace('\\', '/');
+            name = name.substring(name.lastIndexOf('/') + 1).replaceAll("[\\p{C}]", "").strip();
+            if (name.length() > 180) {
+                name = name.substring(0, name.offsetByCodePoints(0, Math.min(180, name.codePointCount(0, name.length()))));
+            }
+        }
+        if (name == null || name.isBlank() || name.equals(".") || name.equals("..")) {
+            name = "attachment";
+        }
+        mediaFiles.put(key, bytes, MediaType.APPLICATION_OCTET_STREAM_VALUE);
+        return new ChatAttachment(key, name, bytes.length);
+    }
+
+    public record DownloadedAttachment(String name, byte[] content) {
     }
 
     @Transactional

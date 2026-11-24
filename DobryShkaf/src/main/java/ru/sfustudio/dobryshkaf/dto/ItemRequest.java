@@ -2,6 +2,7 @@ package ru.sfustudio.dobryshkaf.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import ru.sfustudio.dobryshkaf.domain.DeliveryMethod;
 import ru.sfustudio.dobryshkaf.domain.ItemCondition;
 
 import java.util.UUID;
@@ -22,6 +23,8 @@ public record ItemRequest(
 
         UUID categoryId,
 
-        UUID districtId
+        UUID districtId,
+
+        DeliveryMethod deliveryMethod
 ) {
 }

@@ -65,6 +65,12 @@ public class User {
     @Column(nullable = false)
     private boolean blocked;
 
+    @Column(length = 200)
+    private String avatarKey;
+
+    @Column(length = 50)
+    private String avatarContentType;
+
     @CreationTimestamp
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
@@ -90,6 +96,11 @@ public class User {
 
     public void block() {
         blocked = true;
+    }
+
+    public void changeAvatar(String key, String contentType) {
+        avatarKey = key;
+        avatarContentType = contentType;
     }
 
     public void changePhone(String phone) {

@@ -42,6 +42,8 @@ public class SecurityConfig {
             "/api/points/*",
             "/api/profiles/*",
             "/api/profiles/*/reviews",
+            "/api/profiles/*/history",
+            "/api/profiles/*/avatar",
             "/api/stats",
             "/api/eco/methodology",
             "/v3/api-docs",

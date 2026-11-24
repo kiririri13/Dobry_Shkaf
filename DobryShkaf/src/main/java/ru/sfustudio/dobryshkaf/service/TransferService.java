@@ -40,6 +40,7 @@ public class TransferService {
     private final UserRepository userRepository;
     private final ChatService chatService;
     private final EcoService eco;
+    private final NotificationService notifications;
 
     @Transactional(readOnly = true)
     public long countCompleted(UUID participant) {
@@ -158,6 +159,7 @@ public class TransferService {
         if (action.test(transfer, role)) {
             if (transfer.getStatus() == TransferStatus.COMPLETED) {
                 eco.credit(transfer.getItem());
+                notifications.item(transfer.getItem(), NotificationService.Type.ITEM_UNPUBLISHED, null);
             }
             record(transfer, user.id(), command, before);
         }

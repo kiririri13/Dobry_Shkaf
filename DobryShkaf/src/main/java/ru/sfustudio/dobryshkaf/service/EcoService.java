@@ -196,8 +196,30 @@ public class EcoService {
                 select kind, count(*) as batches, sum(quantity) as quantity, sum(weight_kg) as weight_kg
                 from eco_point_batches group by kind order by kind
                 """).query(PointTotals.class).list() : List.of();
-        return new Stats(completed, closed, totals, pointTotals, "/api/eco/methodology",
+        return new Stats(completed, closed, totals, byCategory(author), pointTotals, "/api/eco/methodology",
                 totals.countedItems() > totals.estimatedItems() ? NO_ESTIMATE : null);
+    }
+
+    private List<CategoryContribution> byCategory(UUID author) {
+        return jdbc.sql("""
+                with counted as (
+                    select i.category_id, c.quantity
+                    from eco_credits c join eco_events e on e.item_id = c.item_id
+                    join items i on i.id = e.item_id
+                    where e.active and c.counted
+                        and (cast(:author as uuid) is null or e.author_id = cast(:author as uuid))
+                    union all
+                    select i.category_id, 1
+                    from items i
+                    where i.status in ('CLOSED', 'TRANSFERRED') and i.published_at is not null
+                        and (cast(:author as uuid) is null or i.owner_id = cast(:author as uuid))
+                        and not exists (select 1 from eco_events e where e.item_id = i.id)
+                )
+                select c.id as category_id, coalesce(c.code, 'uncategorized') as code,
+                       coalesce(c.name, 'Без категории') as name, sum(counted.quantity) as quantity
+                from counted left join categories c on c.id = counted.category_id
+                group by c.id, c.code, c.name, c.sort_order order by c.sort_order nulls last, c.code
+                """).param("author", author).query(CategoryContribution.class).list();
     }
 
     public Methodology methodology() {
@@ -299,7 +321,11 @@ public class EcoService {
     }
 
     public record Stats(long completedTransfers, long closedListings, Totals contribution,
-                        List<PointTotals> pointBatches, String methodologyUrl, String estimateNotice) {
+                        List<CategoryContribution> byCategory, List<PointTotals> pointBatches,
+                        String methodologyUrl, String estimateNotice) {
+    }
+
+    public record CategoryContribution(UUID categoryId, String code, String name, long quantity) {
     }
 
     public record Coefficient(String category, int version, BigDecimal coefficient, String source) {

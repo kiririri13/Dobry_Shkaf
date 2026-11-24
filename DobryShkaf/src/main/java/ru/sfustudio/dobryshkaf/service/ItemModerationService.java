@@ -26,6 +26,7 @@ public class ItemModerationService {
     private final UserRepository users;
     private final TransferService transfers;
     private final ModerationLog log;
+    private final NotificationService notifications;
 
     @Transactional(readOnly = true)
     public PageResponse<ItemResponse> queue(ItemModerationStatus status, int page) {
@@ -53,6 +54,12 @@ public class ItemModerationService {
                 transfers.rejectOpenRequests(item, actor.id());
             }
             log.record(actor, "ITEM", id, action.name(), reason, null);
+            NotificationService.Type notification = switch (action) {
+                case REVIEW -> NotificationService.Type.ITEM_REVIEWED;
+                case HIDE -> NotificationService.Type.ITEM_HIDDEN;
+                case RESTORE -> NotificationService.Type.ITEM_RESTORED;
+            };
+            notifications.item(item, notification, reason);
         }
         items.flush();
         return ItemResponse.from(item);
@@ -67,6 +74,7 @@ public class ItemModerationService {
         if (!user.isBlocked()) {
             user.block();
             log.record(actor, "PROFILE", id, "BLOCK_USER", reason, null);
+            notifications.create(id, NotificationService.Type.ACCOUNT_BLOCKED, id, reason);
         }
     }
 

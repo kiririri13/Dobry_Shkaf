@@ -40,6 +40,7 @@ public class ComplaintService {
     private final TransferRepository transfers;
     private final ChatService chatService;
     private final ModerationLog log;
+    private final NotificationService notifications;
 
     @Transactional
     public Complaint create(TargetType type, UUID id, String reason, CurrentUser reporter) {
@@ -64,10 +65,18 @@ public class ComplaintService {
                 yield null;
             }
         };
-        return jdbc.sql("""
+        Complaint complaint = jdbc.sql("""
                 insert into complaints (target_type, target_id, reason, reporter_id, chat_id)
                 values (?, ?, ?, ?, ?) returning *
                 """).params(type.name(), id, reason, reporter.id(), chatId).query(Complaint.class).single();
+        notifications.create(reporter.id(), NotificationService.Type.COMPLAINT_SUBMITTED, complaint.id(), null);
+        return complaint;
+    }
+
+    public Complaint submitted(UUID id, CurrentUser reporter) {
+        return jdbc.sql("select * from complaints where id = ? and reporter_id = ?")
+                .params(id, reporter.id()).query(Complaint.class).optional()
+                .orElseThrow(() -> new NotFoundException("Жалоба не найдена"));
     }
 
     public List<Complaint> list(Status status, int page, CurrentUser actor) {
@@ -94,6 +103,9 @@ public class ComplaintService {
                 """).params(outcome.name(), explanation, id).query(Complaint.class).optional().orElse(complaint);
         if (complaint.status() == Status.OPEN) {
             log.recordDecision(actor, complaint.targetType().name(), complaint.targetId(), id, outcome, explanation);
+            NotificationService.Type type = outcome == Outcome.UPHELD
+                    ? NotificationService.Type.COMPLAINT_UPHELD : NotificationService.Type.COMPLAINT_DISMISSED;
+            notifications.create(complaint.reporterId(), type, id, explanation);
         }
         return closed;
     }
@@ -108,6 +120,7 @@ public class ComplaintService {
                 """).param(id).query(Complaint.class).optional().orElse(complaint);
         if (complaint.status() == Status.CLOSED) {
             log.record(actor, complaint.targetType().name(), complaint.targetId(), "REOPEN_COMPLAINT", null, id);
+            notifications.create(complaint.reporterId(), NotificationService.Type.COMPLAINT_REOPENED, id, null);
         }
         return reopened;
     }

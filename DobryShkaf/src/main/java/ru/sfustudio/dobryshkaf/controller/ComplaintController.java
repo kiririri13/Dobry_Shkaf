@@ -45,6 +45,12 @@ public class ComplaintController {
         return complaints.create(request.targetType(), request.targetId(), request.reason().strip(), CurrentUser.require(auth));
     }
 
+    @GetMapping("/api/complaints/{id}")
+    public ComplaintService.Complaint submitted(@PathVariable UUID id,
+                                                 @Parameter(hidden = true) Authentication auth) {
+        return complaints.submitted(id, CurrentUser.require(auth));
+    }
+
     @GetMapping("/api/admin/complaints")
     public List<ComplaintService.Complaint> list(@RequestParam(required = false) ComplaintService.Status status,
                                                 @RequestParam(defaultValue = "0") @Min(0) int page,

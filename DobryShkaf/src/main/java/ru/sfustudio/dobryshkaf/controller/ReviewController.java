@@ -42,6 +42,12 @@ public class ReviewController {
         return reviews.list(id, page);
     }
 
+    @GetMapping("/api/profile/me/reviews")
+    public List<ReviewService.ReceivedReview> received(@RequestParam(defaultValue = "0") @Min(0) int page,
+                                                      @Parameter(hidden = true) Authentication authentication) {
+        return reviews.received(CurrentUser.require(authentication), page);
+    }
+
     public record ReviewRequest(@NotNull @Min(1) @Max(5) Integer rating, @Size(max = 1000) String text) {
     }
 }
