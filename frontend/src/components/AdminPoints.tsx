@@ -158,7 +158,7 @@ export default function AdminPoints() {
     setNotice("");
     try {
       await api("/admin/points/" + point.id + "/archive", { method: "POST" });
-      setNotice("Пункт перенесён в архив.");
+      setNotice("Пункт перенесен в архив.");
       points.reload();
     } catch (failure) {
       setError(errorMessage(failure));
@@ -170,7 +170,7 @@ export default function AdminPoints() {
   if (editing) return <PointForm key={editing === "new" ? editing : editing.id}
     point={editing === "new" ? undefined : editing} close={() => setEditing(null)} saved={() => {
       setEditing(null);
-      setNotice("Пункт сохранён.");
+      setNotice("Пункт сохранен.");
       points.reload();
     }} />;
 

@@ -9,6 +9,7 @@ import type { Profile, Review, Transfer } from "@/lib/types";
 import RequestStatus from "./RequestStatus";
 import ReviewSummary from "./ReviewSummary";
 import { profileSections } from "./ProfileTabs";
+import UnderlineTabs from "./UnderlineTabs";
 
 const ratings = [1, 2, 3, 4, 5];
 const commentLimit = 100;
@@ -71,12 +72,12 @@ export default function ReviewForm({ id }: { id: string }) {
           <div><img src="/design/profile-reviews.svg" alt="" /><dt>Отзывов</dt><dd>{reviews.data?.length === 20 ? "20+" : reviews.data?.length ?? "—"}</dd></div>
         </dl>
       </div>
-      <nav className="profile-tabs review-form-tabs" aria-label="Разделы профиля">
+      <UnderlineTabs label="Разделы профиля" className="profile-sections review-form-tabs">
         {["items", "history", "reviews", "eco"].map((section, index) => <Link
           key={section} href={profilePath + "?section=" + section} aria-current={index === 2 ? "page" : undefined}>
           {index === 0 ? "Объявления пользователя" : profileSections[index]}
         </Link>)}
-      </nav>
+      </UnderlineTabs>
       <RequestStatus loading={profile.loading || reviews.loading} error={profile.error || reviews.error}
         retry={() => { profile.reload(); reviews.reload(); }} />
       {reviews.data && <ReviewSummary rating={profile.data?.rating} reviews={reviews.data} />}

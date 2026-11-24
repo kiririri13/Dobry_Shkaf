@@ -40,7 +40,7 @@ export default function PasswordRecovery({ token }: { token?: string }) {
     <Link href="/" className="brand"><img src="/design/brand.svg" alt="Добрый Шкаф" /></Link>
     <h1>{reset ? "Новый пароль" : "Забыли пароль?"}</h1>
     {invalid && <p role="alert">Ссылка недействительна или устарела. <Link href="/forgot-password">Запросить новую ссылку</Link></p>}
-    {success && <p role="status">{reset ? "Пароль изменён. Теперь можно войти." : "Если такая почта зарегистрирована, мы отправили на неё письмо со ссылкой для сброса пароля."}</p>}
+    {success && <p role="status">{reset ? "Пароль изменен. Теперь можно войти." : "Если такая почта зарегистрирована, мы отправили на нее письмо со ссылкой для сброса пароля."}</p>}
     {!invalid && !success && <form onSubmit={submit}>
       <fieldset disabled={busy}>
         {reset ? <>

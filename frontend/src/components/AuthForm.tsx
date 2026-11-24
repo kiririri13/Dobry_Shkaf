@@ -84,7 +84,7 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
     setError("");
     try {
       await api("/auth/resend-confirmation", { method: "POST", json: { email } });
-      setNotice("Если почта ожидает подтверждения, на неё отправлено письмо.");
+      setNotice("Если почта ожидает подтверждения, на нее отправлено письмо.");
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
@@ -104,7 +104,7 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
         <Link href="/login" aria-current={register ? undefined : "page"}>Вход</Link>
       </nav>
       <h1>{register ? "Создайте аккаунт" : "С возвращением!"}</h1>
-      <p className="auth-intro">{register ? <>Это займет всего пару минут.<br />Мы не передаём ваши данные третьим лицам.</> : <>Рады видеть вас снова.<br />Войдите в аккаунт, чтобы продолжить.</>}</p>
+      <p className="auth-intro">{register ? <>Это займет всего пару минут.<br />Мы не передаем ваши данные третьим лицам.</> : <>Рады видеть вас снова.<br />Войдите в аккаунт, чтобы продолжить.</>}</p>
       <form onSubmit={submit}>
         <fieldset disabled={busy}>
           {register ? <RegisterFields /> : <>
@@ -129,8 +129,8 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
         {Object.entries(fields).map(([field, message]) => <li key={field}>{message}</li>)}
       </ul>}
       {notice && <p role="status">{notice}</p>}
-      {email && <button className="secondary" disabled={busy} onClick={resend}>Отправить письмо ещё раз</button>}
-      {!register && <p className="auth-switch">Ещё нет аккаунта? <Link href="/register">Зарегистрироваться</Link></p>}
+      {email && <button className="secondary" disabled={busy} onClick={resend}>Отправить письмо еще раз</button>}
+      {!register && <p className="auth-switch">Еще нет аккаунта? <Link href="/register">Зарегистрироваться</Link></p>}
     </div>
     <aside className="auth-cover">
       <div>
@@ -139,7 +139,7 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
       </div>
       <ul>
         <li><img src="/design/archive.svg" alt="" />Делись вещами с теми, кому они нужны</li>
-        <li><img src="/design/auth-pin.svg" alt="" />Находи пункты приёма рядом с тобой</li>
+        <li><img src="/design/auth-pin.svg" alt="" />Находи пункты приема рядом с тобой</li>
         <li><img src="/design/auth-heart.svg" alt="" />Помогай людям и заботься о природе</li>
       </ul>
     </aside>

@@ -96,7 +96,7 @@ export default function ProfileEco({ stats, completedTransfers, transfers }: {
   const exchanges = given.filter(({ item }) => item.deliveryMethod === "EXCHANGE").length;
   const metrics = transfers ? [
     ["home-package.svg", "Передано", given.length - exchanges],
-    ["review-repeat.png", "Обменяно", exchanges],
+    ["review-repeat.svg", "Обменяно", exchanges],
     ["home-truck.svg", "Сокращено отходов", kilograms(stats?.contribution.weightKg)],
   ] as const : [["home-package.svg", "Завершенные передачи", stats?.completedTransfers ?? completedTransfers ?? "—"]] as const;
 
@@ -122,7 +122,7 @@ export default function ProfileEco({ stats, completedTransfers, transfers }: {
       </header>
       {transfers ? <div className="eco-plot">
         <div className="eco-scale" aria-hidden="true">{[3, 2, 1, 0].map((line) => <span key={line}>{line * step}</span>)}</div>
-        <ul className="eco-chart" aria-label="Число завершённых передач по месяцам" style={{ gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` }}>
+        <ul className="eco-chart" aria-label="Число завершенных передач по месяцам" style={{ gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` }}>
           {months.map(({ label, total }) => <li key={label} aria-label={`${label}: ${total}`}>
             <div className="eco-bar"><span style={{ height: `${total / (3 * step) * 100}%` }} /></div>
             <span>{label}</span>
@@ -135,7 +135,7 @@ export default function ProfileEco({ stats, completedTransfers, transfers }: {
       <h2>Последняя активность</h2>
       {recent.length ? <div className="eco-activities">
         {recent.slice(0, 3).map((transfer) => <EcoActivity key={transfer.id} transfer={transfer} />)}
-      </div> : <p>Завершённых передач пока нет.</p>}
+      </div> : <p>Завершенных передач пока нет.</p>}
     </section>}
   </div>;
 }

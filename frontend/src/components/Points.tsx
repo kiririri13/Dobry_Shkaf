@@ -10,7 +10,7 @@ import PointMap from "./PointMap";
 import RequestStatus from "./RequestStatus";
 import { FavoriteControl } from "./FavoriteButton";
 
-const pointTypes = { COLLECTION: "Пункт приёма", EXCHANGE: "Пункт обмена" };
+const pointTypes = { COLLECTION: "Пункт приема", EXCHANGE: "Пункт обмена" };
 export const pointStatuses = { ACTIVE: "Работает", TEMPORARILY_CLOSED: "Временно закрыт", ARCHIVED: "В архиве" };
 
 export default function Points() {
@@ -34,7 +34,7 @@ export default function Points() {
   }
 
   return <section className="points-page">
-    <h1 className="visually-hidden">Пункты приёма и обмена</h1>
+    <h1 className="visually-hidden">Пункты приема и обмена</h1>
     <form className="panel filters points-filters" onSubmit={apply} onReset={() => setFilters({})}>
       <label>Название<input name="q" type="search" placeholder="Поиск по названию" /></label>
       <label>Тип<select name="type">
@@ -82,7 +82,7 @@ export function PointDetails({ id }: { id: string }) {
       <dt>Режим работы</dt><dd>{data.hours}</dd>
       <dt>Контакты</dt><dd>{data.contacts}</dd>
       <dt>Что принимают</dt><dd>{data.categories.map((category) => category.name).join(", ")}</dd>
-      <dt>Условия приёма</dt><dd>{data.conditions}</dd>
+      <dt>Условия приема</dt><dd>{data.conditions}</dd>
       {data.receivingConditions && <><dt>Как получить вещи</dt><dd>{data.receivingConditions}</dd></>}
       <dt>Источник</dt><dd>{data.source}</dd>
       <dt>Дата проверки</dt><dd>{data.verifiedAt}</dd>

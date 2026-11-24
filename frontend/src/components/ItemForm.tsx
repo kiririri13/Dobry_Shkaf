@@ -52,7 +52,7 @@ export default function ItemForm({ initial }: { initial?: Item }) {
     if (busy) return;
     setError("");
     setNotice("");
-    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | HTMLInputElement | null;
     const publish = submitter?.value === "publish";
     const data = new FormData(event.currentTarget);
     const value = (name: string) => String(data.get(name) || "").trim();
@@ -89,7 +89,7 @@ export default function ItemForm({ initial }: { initial?: Item }) {
         await api("/items/" + saved.id + "/publish", { method: "POST" });
         router.push("/items/" + saved.id);
       } else {
-        setNotice(saved.status === "DRAFT" ? "Черновик сохранён." : "Изменения сохранены.");
+        setNotice(saved.status === "DRAFT" ? "Черновик сохранен." : "Изменения сохранены.");
       }
     } catch (failure) {
       showError(failure);
@@ -118,10 +118,12 @@ export default function ItemForm({ initial }: { initial?: Item }) {
   }} />;
   const preview = firstFile ? previewUrl : item?.photos[0]?.url;
   const district = districts.data?.find((entry) => entry.id === districtId);
+  const canSaveDraft = !item || item.status === "DRAFT";
   return <section className="listing-editor">
     <h1>{initial ? "Редактирование объявления" : "Создание объявления"}</h1>
     {!initial && <p>Поделитесь вещью с другими - помогите ей обрести вторую жизнь!</p>}
     <form id="listing-form" onSubmit={save}>
+      {canSaveDraft && <input type="submit" value="save" hidden disabled={busy} />}
       <fieldset className="listing-fields" disabled={busy}>
         <div className="listing-wide listing-photos">
           <p>Фотографии<span className="listing-required" aria-hidden="true">*</span></p>
@@ -160,13 +162,10 @@ export default function ItemForm({ initial }: { initial?: Item }) {
             value={size} onChange={(event) => setSize(event.target.value)} maxLength={20} disabled={!needsSize} /></label>
         </div>
         <label className="listing-wide listing-description"><FieldTitle text="Описание" /><textarea name="description" defaultValue={initial?.description || ""} maxLength={2000} rows={5}
-          placeholder="Расскажите подробнее о вещи, её особенностях и возможных дефектах..." /></label>
+          placeholder="Расскажите подробнее о вещи, ее особенностях и возможных дефектах..." /></label>
         <Districts name="districtId" label={<FieldTitle text="Район" />} options={districts.data} value={districtId} onChange={setDistrictId} />
       </fieldset>
     </form>
-    {(!item || item.status === "DRAFT") && <button form="listing-form" value="save" className="secondary listing-draft" disabled={busy}>
-      {busy ? "Сохраняем…" : "Сохранить черновик"}
-    </button>}
     <RequestStatus error={error} />
     {notice && <p role="status">{notice} {item && <a href={"/items/" + item.id}>Открыть объявление</a>}</p>}
     <aside className={needsSize ? "panel listing-preview listing-preview-size" : "panel listing-preview"}>
@@ -183,7 +182,12 @@ export default function ItemForm({ initial }: { initial?: Item }) {
         </div>
       </div>
       <div className="listing-actions">
-        {(!item || item.status === "DRAFT") && <button form="listing-form" value="publish" disabled={busy}>Опубликовать объявление</button>}
+        {canSaveDraft && <>
+          <button form="listing-form" value="publish" disabled={busy}>Опубликовать объявление</button>
+          <button form="listing-form" value="save" className="secondary" disabled={busy}>
+            {busy ? "Сохраняем…" : "Сохранить черновик"}
+          </button>
+        </>}
         {item?.status === "PUBLISHED" && <button form="listing-form" value="save" disabled={busy}>
           {busy ? "Сохраняем…" : "Сохранить изменения"}
         </button>}

@@ -84,11 +84,12 @@ export default function Home() {
     </div>
     <section className="home-points">
       <div className="home-points-overview">
-        <header><HomeIcon name="map-pin" /><div><h2>Рядом с вами</h2><p>Пункты приема и где можно сдать вещи</p></div></header>
-        <div className="home-points-map">
-          {points.data && points.data.length > 0 && <PointMap points={points.data} compact />}
+        <header>
+          <HomeIcon name="map-pin" />
+          <div><h2>Рядом с вами</h2><p>Пункты приема и где можно сдать вещи</p></div>
           <Link className="button" href="/points">Открыть карту</Link>
-        </div>
+        </header>
+        {points.data && points.data.length > 0 && <PointMap points={points.data} compact />}
       </div>
       {firstPoint && <div className="home-points-near">
         <h2>Пункты на карте</h2><p>Удобно когда рядом</p>

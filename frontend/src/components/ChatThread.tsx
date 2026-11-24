@@ -195,8 +195,18 @@ export default function ChatThread({ id }: { id: string }) {
 }
 
 function ChatFile({ file, onPreview }: { file: NonNullable<ChatMessage["attachment"]>; onPreview: (file: NonNullable<ChatMessage["attachment"]>) => void }) {
+  const [imageFailed, setImageFailed] = useState(false);
+  const previewType = attachmentPreviewType(file.name);
+
+  if (previewType?.startsWith("image/")) {
+    return <button type="button" className="chat-image" aria-label="Открыть изображение" onClick={() => onPreview(file)}>
+      {imageFailed ? <span>Изображение недоступно</span>
+        : <img src={file.url} alt="" loading="lazy" onError={() => setImageFailed(true)} />}
+    </button>;
+  }
+
   const content = <><img src="/design/chat-attach.svg" alt="" /><span>{file.name}</span></>;
-  return attachmentPreviewType(file.name)
+  return previewType
     ? <button type="button" className="chat-file" aria-label={"Посмотреть " + file.name} onClick={() => onPreview(file)}>{content}</button>
     : <a className="chat-file" href={file.url} download={file.name}>{content}</a>;
 }

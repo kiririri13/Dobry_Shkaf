@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { LngLat, YMap, YMapLocationRequest } from "@yandex/ymaps3-types";
-import type { YMapDefaultMarker } from "@yandex/ymaps3-default-ui-theme";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
+import type { LngLat, YMap, YMapLocationRequest, YMapMarker } from "@yandex/ymaps3-types";
 import type { Point } from "@/lib/types";
 import type { PointMapProps } from "./PointMap";
 
@@ -60,9 +59,10 @@ export default function YandexPointMap({ points, focus, onPick, selection, showF
 }) {
   const container = useRef<HTMLDivElement>(null);
   const activeMap = useRef<YMap | null>(null);
-  const markers = useRef(new Map<string, YMapDefaultMarker>());
-  const [map, setMap] = useState<{ instance: YMap; api: YandexApi; Marker: typeof YMapDefaultMarker }>();
+  const markers = useRef(new Map<string, { marker: YMapMarker; button: HTMLButtonElement }>());
+  const [map, setMap] = useState<{ instance: YMap; api: YandexApi }>();
   const [selectedId, setSelectedId] = useState<string | null>();
+  const [hint, setHint] = useState<{ name: string; x: number; y: number; below: boolean }>();
   const [locationError, setLocationError] = useState("");
   const activeId = selectedId === undefined && showFirst ? points[0]?.id : selectedId;
   const selectedPoint = points.find((point) => point.id === activeId);
@@ -74,8 +74,7 @@ export default function YandexPointMap({ points, focus, onPick, selection, showF
     if (!element) return;
     let cancelled = false;
     let instance: YMap | undefined;
-    void loadYandexMaps(apiKey).then(async (api) => {
-      const { YMapDefaultMarker: Marker } = await import("@yandex/ymaps3-default-ui-theme");
+    void loadYandexMaps(apiKey).then((api) => {
       if (cancelled) return;
       instance = new api.YMap(element, {
         location: getLocation(initialView.current.points, initialView.current.editing),
@@ -84,7 +83,7 @@ export default function YandexPointMap({ points, focus, onPick, selection, showF
       instance.addChild(new api.YMapDefaultSchemeLayer({}));
       instance.addChild(new api.YMapDefaultFeaturesLayer({}));
       activeMap.current = instance;
-      setMap({ instance, api, Marker });
+      setMap({ instance, api });
     }).catch(() => {
       if (!cancelled) onUnavailable();
     });
@@ -98,23 +97,46 @@ export default function YandexPointMap({ points, focus, onPick, selection, showF
 
   useEffect(() => {
     if (!map) return;
-    const { instance, Marker } = map;
+    const { instance, api } = map;
     instance.setLocation(getLocation(points, editing));
+    setHint(undefined);
     const elements = markers.current;
-    const pins = points.map((point) => {
-      const marker = new Marker({
-        coordinates: [point.longitude, point.latitude],
-        title: point.name,
-        staticHint: false,
-        blockEvents: true,
-        onClick: () => setSelectedId(point.id),
+    for (const point of points) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "point-map-pin";
+      button.setAttribute("aria-label", point.name);
+
+      function showHint() {
+        const area = container.current?.getBoundingClientRect();
+        if (!area) return;
+        const pin = button.getBoundingClientRect();
+        const below = pin.top - area.top < area.height / 2;
+        setHint({
+          name: point.name,
+          x: pin.left + pin.width / 2 - area.left,
+          y: below ? pin.bottom - area.top + 6 : pin.top - area.top - 6,
+          below,
+        });
+      }
+
+      button.addEventListener("pointerenter", showHint);
+      button.addEventListener("focus", showHint);
+      button.addEventListener("pointerleave", () => setHint(undefined));
+      button.addEventListener("blur", () => setHint(undefined));
+      button.addEventListener("click", () => {
+        setSelectedId(point.id);
+        setHint(undefined);
       });
-      elements.set(point.id, marker);
+      const marker = new api.YMapMarker({
+        coordinates: [point.longitude, point.latitude],
+        blockEvents: true,
+      }, button);
+      elements.set(point.id, { marker, button });
       instance.addChild(marker);
-      return marker;
-    });
+    }
     return () => {
-      if (activeMap.current === instance) pins.forEach((pin) => instance.removeChild(pin));
+      if (activeMap.current === instance) elements.forEach(({ marker }) => instance.removeChild(marker));
       elements.clear();
     };
   }, [map, points, editing]);
@@ -137,8 +159,12 @@ export default function YandexPointMap({ points, focus, onPick, selection, showF
 
   useEffect(() => {
     if (!map || !selection) return;
-    const { instance, Marker } = map;
-    const marker = new Marker({ coordinates: [selection.lng, selection.lat], color: "green", zIndex: 2 });
+    const { instance, api } = map;
+    const pin = document.createElement("span");
+    pin.className = "point-map-pin";
+    pin.dataset.state = "selected";
+    pin.setAttribute("aria-hidden", "true");
+    const marker = new api.YMapMarker({ coordinates: [selection.lng, selection.lat], zIndex: 2 }, pin);
     instance.addChild(marker);
     return () => { if (activeMap.current === instance) instance.removeChild(marker); };
   }, [map, selection]);
@@ -155,8 +181,11 @@ export default function YandexPointMap({ points, focus, onPick, selection, showF
   useEffect(() => {
     for (const point of points) {
       const active = point.id === activeId;
-      const color = point.temporarilyClosed ? { day: "#686868", night: "#969696" } : active ? "green" : "red";
-      markers.current.get(point.id)?.update({ color, zIndex: active ? 1 : 0 });
+      const pin = markers.current.get(point.id);
+      if (!pin) continue;
+      pin.button.dataset.state = point.temporarilyClosed ? "closed" : active ? "selected" : "open";
+      pin.button.setAttribute("aria-pressed", String(active));
+      pin.marker.update({ zIndex: active ? 1 : 0 });
     }
   }, [map, points, activeId]);
 
@@ -174,7 +203,11 @@ export default function YandexPointMap({ points, focus, onPick, selection, showF
   }
 
   const pointCard = selectedPoint && <div className="yandex-map-popup">
-    <button type="button" className="secondary" aria-label="Закрыть карточку пункта" onClick={() => setSelectedId(null)}>×</button>
+    <button type="button" className="point-popup-close" aria-label="Закрыть карточку пункта" onClick={() => setSelectedId(null)}>
+      <svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+        <path d="m4 4 8 8M12 4l-8 8" />
+      </svg>
+    </button>
     <div className="point-popup-card">
       <img className={selectedPoint.photoUrl ? "point-popup-photo" : "point-popup-photo point-popup-placeholder"}
         src={selectedPoint.photoUrl || "/design/map.svg"} alt="" />
@@ -186,7 +219,7 @@ export default function YandexPointMap({ points, focus, onPick, selection, showF
     </div>
   </div>;
 
-  return <section className={editing ? "point-editor-map" : ""} aria-label="Карта пунктов">
+  return <section className={editing ? "point-editor-map" : undefined} aria-label="Карта пунктов">
     <div className="map yandex-map">
       <div className="yandex-map-surface" ref={container} />
       {!map && <p className="yandex-map-loading" role="status">Загружается Яндекс Карта…</p>}
@@ -198,9 +231,11 @@ export default function YandexPointMap({ points, focus, onPick, selection, showF
         {!compact && pointCard}
       </>}
     </div>
+    {hint && <span className={hint.below ? "point-map-hint below" : "point-map-hint"} aria-hidden="true"
+      style={{ "--hint-x": hint.x + "px", top: hint.y } as CSSProperties}>{hint.name}</span>}
     {compact && map && pointCard}
     {!compact && <div className="map-location">
-      <button type="button" className="secondary" disabled={!map} onClick={locate}>Моё местоположение</button>
+      <button type="button" className="secondary" disabled={!map} onClick={locate}>Мое местоположение</button>
       {locationError && <p role="status">{locationError}</p>}
     </div>}
   </section>;
