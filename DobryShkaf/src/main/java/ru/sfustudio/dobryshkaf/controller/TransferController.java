@@ -26,7 +26,7 @@ import ru.sfustudio.dobryshkaf.service.TransferService;
 import java.util.List;
 import java.util.UUID;
 
-@Tag(name = "6. Передачи", description = "Запрос → выбор получателя → подтверждения обоих. "
+@Tag(name = "6. Передачи", description = "Запрос → выбор получателя → подтверждение получения → подтверждение передачи. "
         + "availableActions подсказывает, какие кнопки показать. Повтор команды возвращает текущее состояние, конфликт — 409")
 @RestController
 @RequestMapping("/api/transfers")
@@ -72,7 +72,8 @@ public class TransferController {
         return transferService.select(id, CurrentUser.require(authentication));
     }
 
-    @Operation(summary = "Подтвердить передачу", description = "После подтверждения обоими передача завершается, вещь отмечается переданной")
+    @Operation(summary = "Подтвердить получение или передачу", description = "Получатель отмечает, что забрал вещь. "
+            + "Затем владелец отмечает, что отдал её, и передача завершается")
     @PostMapping("/{id}/confirm")
     public TransferResponse confirm(@PathVariable UUID id, @Parameter(hidden = true) Authentication authentication) {
         return transferService.confirm(id, CurrentUser.require(authentication));

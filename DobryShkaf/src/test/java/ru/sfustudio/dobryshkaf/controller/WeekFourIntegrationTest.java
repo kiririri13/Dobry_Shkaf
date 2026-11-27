@@ -142,8 +142,8 @@ class WeekFourIntegrationTest {
         String body = "{\"rating\":5,\"text\":\"Спасибо!\"}";
         as(owner, post("/api/transfers/{id}/reviews", transfer), body).andExpect(status().isConflict());
         as(owner, post("/api/transfers/{id}/select", transfer), null).andExpect(status().isOk());
-        as(owner, post("/api/transfers/{id}/confirm", transfer), null).andExpect(status().isOk());
         as(receiver, post("/api/transfers/{id}/confirm", transfer), null).andExpect(status().isOk());
+        as(owner, post("/api/transfers/{id}/confirm", transfer), null).andExpect(status().isOk());
         as(receiver, post("/api/transfers/{id}/reviews", transfer), "{\"rating\":6}").andExpect(status().isBadRequest());
         String review = field(as(receiver, post("/api/transfers/{id}/reviews", transfer), body)
                 .andExpect(status().isCreated()), "$.id");

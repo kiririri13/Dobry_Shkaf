@@ -402,17 +402,18 @@ export function watchChat(chatId, { lastSeq, onEvent }) {
 
 | `availableActions` | Кнопка | Команда |
 |---|---|---|
-| `SELECT` | «Отдать этому человеку» (видит владелец) | `POST /api/transfers/{id}/select` |
-| `CONFIRM` | «Вещь передана» / «Вещь получена» | `POST /api/transfers/{id}/confirm` |
+| `SELECT` | «Выбрать получателя» или «Согласиться на обмен» (видит владелец) | `POST /api/transfers/{id}/select` |
+| `CONFIRM` | «Я забрал вещь» (получатель), затем «Я отдал вещь» (владелец) | `POST /api/transfers/{id}/confirm` |
 | `CANCEL` | «Отклонить», «Отозвать заявку», «Отменить» или «Попросить отмену» | `POST /api/transfers/{id}/cancel` |
 | `ACCEPT_CANCELLATION` | «Согласиться на отмену» | `POST /api/transfers/{id}/cancellation/accept` |
 | `DECLINE_CANCELLATION` | «Продолжить передачу» | `POST /api/transfers/{id}/cancellation/decline` |
 
 | Что показать | Откуда взять |
 |---|---|
-| Кнопка «Забрать» в карточке вещи | `POST /api/transfers` с `{ itemId }`. Ответ — заявка и `chatId` диалога с владельцем. Повтор вернёт `200` и ту же заявку |
+| Кнопка «Хочу забрать» или «Предложить обмен» в карточке вещи | `POST /api/transfers` с `{ itemId }`. Ответ — заявка и `chatId` диалога с владельцем. Повтор вернёт `200` и ту же заявку |
 | Заявки на мою вещь (для владельца) | `GET /api/transfers?itemId=...`; можно добавить `&status=REQUESTED` |
 | Мои передачи | `GET /api/transfers` без параметров — где я отдаю или получаю |
+| Передача в диалоге | В `GET /api/transfers?itemId=...` возьмите новейшую передачу с `chatId` текущего диалога |
 | Моя роль | `myRole`: `GIVER` отдаёт, `RECEIVER` получает |
 | Кто уже подтвердил | `giverConfirmed`, `receiverConfirmed` |
 | Кто попросил отмену | `cancellationRequestedBy`: `GIVER` или `RECEIVER` |
@@ -425,14 +426,16 @@ export function watchChat(chatId, { lastSeq, onEvent }) {
 | `REQUESTED` заявка | владелец выбирает получателя | `RESERVED`, остальные заявки — `REJECTED`, вещь пропадает из каталога |
 | `REQUESTED` | владелец отклоняет (`cancel`) | `REJECTED` |
 | `REQUESTED` | получатель отзывает (`cancel`) | `CANCELLED` |
-| `RESERVED` резерв | первое подтверждение | `AWAITING_CONFIRMATION` |
+| `RESERVED` резерв | получатель отмечает, что забрал вещь | `AWAITING_CONFIRMATION` |
 | `RESERVED` | любой отменяет | `CANCELLED`, вещь возвращается в каталог |
-| `AWAITING_CONFIRMATION` | второе подтверждение | `COMPLETED`, вещь `TRANSFERRED` |
+| `AWAITING_CONFIRMATION` | владелец отмечает, что отдал вещь | `COMPLETED`, вещь `TRANSFERRED` |
 | `AWAITING_CONFIRMATION` | любой просит отмену | `CANCELLATION_REQUESTED` |
 | `CANCELLATION_REQUESTED` | второй участник соглашается | `CANCELLED`, вещь возвращается в каталог |
 | `CANCELLATION_REQUESTED` | второй участник отказывается | `AWAITING_CONFIRMATION` |
 
 - Пока получатель не выбран, на одну вещь может быть несколько заявок; от одного человека — только одна активная.
+- Порядок одинаков для обмена и безвозмездной передачи. После второго подтверждения передача появляется в завершённой истории, начисляется экологический вклад и можно оставить отзыв.
+- Если у старой передачи в статусе `AWAITING_CONFIRMATION` первым уже подтвердил владелец, её может завершить получатель.
 - Повтор той же команды безопасен: сервер вернёт `200` и текущее состояние. Например, повторное первое подтверждение оставит `AWAITING_CONFIRMATION`.
 - Команда, которая не подходит к текущему статусу, отвечает `409 TRANSFER_STATE_CONFLICT`. Скорее всего, второй участник успел что-то сделать: перезапросите передачу.
 - Пока обсуждается отмена, подтвердить передачу нельзя.

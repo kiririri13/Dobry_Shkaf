@@ -243,8 +243,8 @@ class FrontendAdditionsIntegrationTest {
 
     private void completeTransfer(String id) throws Exception {
         as(owner.getId(), post("/api/transfers/{id}/select", id), null).andExpect(status().isOk());
-        as(owner.getId(), post("/api/transfers/{id}/confirm", id), null).andExpect(status().isOk());
         as(actors.reader(), post("/api/transfers/{id}/confirm", id), null).andExpect(status().isOk());
+        as(owner.getId(), post("/api/transfers/{id}/confirm", id), null).andExpect(status().isOk());
     }
 
     private static String itemBody(Item item) {

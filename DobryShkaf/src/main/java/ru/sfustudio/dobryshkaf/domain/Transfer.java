@@ -147,12 +147,16 @@ public class Transfer {
     }
 
     /**
-     * Резерв → Ожидает второго → Завершена. Повтор подтверждения тем же участником ничего не меняет.
+     * После резерва получатель подтверждает получение, затем владелец подтверждает передачу.
+     * Повтор подтверждения тем же участником ничего не меняет.
      * Завершение в одной транзакции отмечает и передачу, и вещь.
      */
     public boolean confirm(TransferRole by, Instant now) {
         switch (status) {
             case RESERVED -> {
+                if (by != TransferRole.RECEIVER) {
+                    throw conflict("Сначала получатель должен отметить, что забрал вещь");
+                }
                 markConfirmed(by, now);
                 status = TransferStatus.AWAITING_CONFIRMATION;
                 return true;
@@ -250,7 +254,9 @@ public class Transfer {
                 actions.add(TransferAction.CANCEL);
             }
             case RESERVED -> {
-                actions.add(TransferAction.CONFIRM);
+                if (role == TransferRole.RECEIVER) {
+                    actions.add(TransferAction.CONFIRM);
+                }
                 actions.add(TransferAction.CANCEL);
             }
             case AWAITING_CONFIRMATION -> {

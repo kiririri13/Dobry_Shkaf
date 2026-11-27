@@ -3,6 +3,8 @@ package ru.sfustudio.dobryshkaf.controller;
 import com.jayway.jsonpath.JsonPath;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -13,6 +15,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import ru.sfustudio.dobryshkaf.TestcontainersConfiguration;
+import ru.sfustudio.dobryshkaf.domain.DeliveryMethod;
 import ru.sfustudio.dobryshkaf.domain.Item;
 import ru.sfustudio.dobryshkaf.domain.User;
 import ru.sfustudio.dobryshkaf.exception.ConflictException;
@@ -29,6 +32,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -69,10 +74,13 @@ class TransferIntegrationTest {
         item = fixtures.publishedItem(owner);
     }
 
-    @Test
-    void fullCycleFromRequestToCompletedTransfer() throws Exception {
+    @ParameterizedTest
+    @EnumSource(DeliveryMethod.class)
+    void fullCycleFromRequestToCompletedTransfer(DeliveryMethod deliveryMethod) throws Exception {
+        jdbcTemplate.update("update items set delivery_method = ? where id = ?", deliveryMethod.name(), item.getId());
         String aliceTransfer = request(alice).andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("REQUESTED"))
+                .andExpect(jsonPath("$.item.deliveryMethod").value(deliveryMethod.name()))
                 .andExpect(jsonPath("$.chatId").exists())
                 .andReturn().getResponse().getContentAsString();
         String transferId = JsonPath.read(aliceTransfer, "$.id");
@@ -82,11 +90,22 @@ class TransferIntegrationTest {
         itemStatus().andExpect(jsonPath("$.status").value("PUBLISHED"));
 
         command(owner, transferId, "select")
-                .andExpect(jsonPath("$.status").value("RESERVED"));
+                .andExpect(jsonPath("$.status").value("RESERVED"))
+                .andExpect(jsonPath("$.availableActions", contains("CANCEL")));
         perform(get("/api/transfers/{id}", bobTransferId), bob).andExpect(jsonPath("$.status").value("REJECTED"));
         itemStatus().andExpect(jsonPath("$.status").value("RESERVED"));
+        command(owner, transferId, "confirm")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("TRANSFER_STATE_CONFLICT"));
 
-        command(alice, transferId, "confirm").andExpect(jsonPath("$.status").value("AWAITING_CONFIRMATION"));
+        command(alice, transferId, "confirm")
+                .andExpect(jsonPath("$.status").value("AWAITING_CONFIRMATION"))
+                .andExpect(jsonPath("$.receiverConfirmed").value(true))
+                .andExpect(jsonPath("$.giverConfirmed").value(false));
+        itemStatus().andExpect(jsonPath("$.status").value("RESERVED"));
+        perform(get("/api/profile/me/stats"), owner).andExpect(jsonPath("$.contribution.countedItems").value(0));
+        perform(get("/api/transfers/{id}", transferId), owner)
+                .andExpect(jsonPath("$.availableActions", containsInAnyOrder("CONFIRM", "CANCEL")));
         command(alice, transferId, "confirm")
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("AWAITING_CONFIRMATION"));
@@ -94,9 +113,10 @@ class TransferIntegrationTest {
                 .andExpect(jsonPath("$.status").value("COMPLETED"))
                 .andExpect(jsonPath("$.completedAt").exists());
         itemStatus().andExpect(jsonPath("$.status").value("TRANSFERRED"));
+        perform(get("/api/profile/me/stats"), owner).andExpect(jsonPath("$.contribution.countedItems").value(1));
 
         perform(get("/api/transfers/{id}/events", transferId), alice)
-                .andExpect(jsonPath("$[*].command").value(org.hamcrest.Matchers.contains("REQUEST", "SELECT", "CONFIRM", "CONFIRM")));
+                .andExpect(jsonPath("$[*].command", contains("REQUEST", "SELECT", "CONFIRM", "CONFIRM")));
     }
 
     @Test
@@ -167,13 +187,14 @@ class TransferIntegrationTest {
     }
 
     @Test
-    void twoSimultaneousConfirmationsCreateOneCompletedTransfer() throws Exception {
+    void twoSimultaneousFinalConfirmationsCreateOneCompletedTransfer() throws Exception {
         UUID transferId = transferService.request(item.getId(), as(alice)).body().id();
         transferService.select(transferId, as(owner));
+        transferService.confirm(transferId, as(alice));
 
         List<Object> results = runConcurrently(
                 () -> transferService.confirm(transferId, as(owner)),
-                () -> transferService.confirm(transferId, as(alice)));
+                () -> transferService.confirm(transferId, as(owner)));
 
         assertThat(results).noneMatch(Throwable.class::isInstance);
         assertThat(jdbcTemplate.queryForObject(
@@ -183,6 +204,19 @@ class TransferIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from transfer_events where transfer_id = ? and to_status = 'COMPLETED'",
                 Integer.class, transferId)).isEqualTo(1);
+    }
+
+    @Test
+    void receiverCanFinishTransferPreviouslyConfirmedByOwner() throws Exception {
+        UUID transferId = transferService.request(item.getId(), as(alice)).body().id();
+        transferService.select(transferId, as(owner));
+        jdbcTemplate.update("""
+                update transfers set status = 'AWAITING_CONFIRMATION', giver_confirmed_at = now() where id = ?
+                """, transferId);
+
+        perform(get("/api/transfers/{id}", transferId), alice)
+                .andExpect(jsonPath("$.availableActions", containsInAnyOrder("CONFIRM", "CANCEL")));
+        command(alice, transferId.toString(), "confirm").andExpect(jsonPath("$.status").value("COMPLETED"));
     }
 
     /** Запускает задачи одновременно и возвращает их результаты или брошенные исключения. */
