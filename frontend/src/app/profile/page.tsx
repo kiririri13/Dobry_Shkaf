@@ -13,7 +13,7 @@ import ProfileEco from "@/components/ProfileEco";
 import { api, errorMessage } from "@/lib/api";
 import { useData } from "@/lib/useData";
 import type { District, EcoStats, ItemPage, Profile as ProfileData, Review, Transfer } from "@/lib/types";
-import { transferStatuses } from "@/components/Transfers";
+import { transferStatusLabel } from "@/components/Transfers";
 
 export default function ProfilePage() {
   return <PrivatePage><Suspense fallback={<RequestStatus loading />}><ProfileFromLink /></Suspense></PrivatePage>;
@@ -183,7 +183,8 @@ function Profile({ initialSection }: { initialSection: number }) {
         {history.map((transfer) => {
           const href = "/profile/transfers/" + encodeURIComponent(transfer.id);
           const outgoing = transfer.myRole === "GIVER";
-          const status = transfer.status === "COMPLETED" ? outgoing ? "Отдали" : "Получили" : transferStatuses[transfer.status];
+          const status = transfer.status === "COMPLETED" && transfer.item.deliveryMethod !== "EXCHANGE"
+            ? outgoing ? "Отдали" : "Получили" : transferStatusLabel(transfer);
           const date = transfer.completedAt ?? transfer.updatedAt;
           return <article className="card" key={transfer.id} data-status={transfer.status}>
             <Link className="card-image" href={href} aria-label={transfer.item.title}>

@@ -737,6 +737,10 @@ textarea { resize: vertical; }
 .conversation-heading h1 { margin: 0 0 8px; font-size: clamp(1.2rem, 1.25vw, 24px); font-weight: 400; }
 .conversation-heading a { color: #337458; font-size: clamp(14px, 1.042vw, 20px); font-weight: 300; text-decoration: none; }
 .conversation-heading a:hover { text-decoration: underline; }
+.chat-transfer { display: grid; gap: 8px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+.chat-transfer:empty { display: none; }
+.chat-transfer p { margin: 0; }
+.chat-transfer > a { justify-self: start; }
 .conversation-menu { position: relative; z-index: 1; margin: 8px -5px 0 auto; flex: none; }
 .conversation-menu summary { display: grid; place-items: center; min-width: 47px; min-height: 40px; cursor: pointer; list-style: none; }
 .conversation-menu summary::-webkit-details-marker { display: none; }

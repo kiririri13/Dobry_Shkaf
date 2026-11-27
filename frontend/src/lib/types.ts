@@ -56,12 +56,19 @@ export type Transfer = {
   chatId: string;
   status: TransferStatus;
   myRole: "GIVER" | "RECEIVER";
+  receiverConfirmed: boolean;
   availableActions: TransferAction[];
   completedAt?: string | null;
   updatedAt?: string;
 };
 
-export type TransferEvent = { id: string; actorId: string; toStatus: TransferStatus; createdAt: string };
+export type TransferEvent = {
+  id: string;
+  command: TransferAction | "REQUEST" | "AUTO_REJECT";
+  actorId: string;
+  toStatus: TransferStatus;
+  createdAt: string;
+};
 export type Favorites = { items: Item[]; points: Point[] };
 export type Review = { id: string; authorId?: string; rating: number; text: string | null; createdAt: string; deliveryMethod?: DeliveryMethod };
 export type Profile = { id: string; name: string; district: District | null; rating: number | null; completedTransfers: number; memberSinceYear?: number; avatarUrl?: string | null; bio?: string | null };

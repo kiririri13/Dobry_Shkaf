@@ -8,6 +8,7 @@ import type { Chat, ChatMessage, MessagePage } from "@/lib/types";
 import ChatAttachmentPreview, { attachmentPreviewType } from "./ChatAttachmentPreview";
 import RequestStatus from "./RequestStatus";
 import { useSession } from "./Session";
+import { ChatTransfer } from "./Transfers";
 
 function mergeMessages(previous: ChatMessage[], incoming: ChatMessage[]) {
   return [...new Map([...previous, ...incoming].map((message) => [message.seq, message])).values()]
@@ -140,6 +141,7 @@ export default function ChatThread({ id }: { id: string }) {
           <Link href={"/profiles/" + encodeURIComponent(chat.data.counterpart.id)}>Открыть профиль</Link>
         </details>
       </header>
+      <ChatTransfer chatId={id} itemId={chat.data.item.id} />
       <RequestStatus loading={history.loading && !messages.length} error={history.error} retry={history.reload} />
       {hasOlder && <button type="button" className="secondary" disabled={loadingOlder} onClick={loadOlder}>Более ранние сообщения</button>}
       {!history.loading && !history.error && !messages.length && <p>Сообщений пока нет.</p>}
