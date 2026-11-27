@@ -10,6 +10,7 @@ import type { Category, Condition, DeliveryMethod, District, Item } from "@/lib/
 import { Conditions, Districts } from "./Fields";
 import RequestStatus from "./RequestStatus";
 import { useSession } from "./Session";
+import ItemEcoFields, { newEcoRow, type EcoMethodology, type EcoRow, type ItemComposition } from "./ItemEcoFields";
 
 function FieldTitle({ text, required = true }: { text: string; required?: boolean }) {
   return <span className="listing-label">{text}{required && <span className="listing-required" aria-hidden="true">*</span>}</span>;
@@ -17,9 +18,15 @@ function FieldTitle({ text, required = true }: { text: string; required?: boolea
 
 export default function ItemForm({ initial }: { initial?: Item }) {
   const router = useRouter();
+  const { user } = useSession();
+  const canEditEco = !initial || initial.owner.id === user?.id;
   const categories = useData<Category[]>("/categories");
   const districts = useData<District[]>("/districts");
   const conditions = useData<Condition[]>("/item-conditions");
+  const methodology = useData<EcoMethodology>(canEditEco ? "/eco/methodology" : "");
+  const eco = useData<ItemComposition>(canEditEco && initial ? "/items/" + initial.id + "/eco" : "");
+  const [ecoDraft, setEcoDraft] = useState<EcoRow[]>();
+  const [ecoDirty, setEcoDirty] = useState(false);
   const [item, setItem] = useState(initial);
   const [categoryId, setCategoryId] = useState(initial?.category?.id || "");
   const [districtId, setDistrictId] = useState(initial?.district?.id || "");
@@ -33,6 +40,12 @@ export default function ItemForm({ initial }: { initial?: Item }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const needsSize = categories.data?.find((category) => category.id === categoryId)?.sizeRequired;
+  const itemTypes = methodology.data?.itemTypes;
+  const ecoLockNotice = eco.data?.event ? "Состав зафиксирован в истории передач."
+    : eco.data?.lines.some(({ originLineId }) => originLineId) ? "Состав содержит вещи из предыдущей передачи." : "";
+  const ecoRows = ecoDraft ?? (eco.data?.lines.length ? eco.data.lines.map(({ category, quantity }) => ({
+    category, quantity: String(quantity),
+  })) : [newEcoRow()]);
   const photoCount = item?.photos.length || 0;
   const firstFile = files[0];
   useEffect(() => {
@@ -63,6 +76,13 @@ export default function ItemForm({ initial }: { initial?: Item }) {
     if (publish && (!value("description") || !categoryId || !value("districtId") || !value("condition") || (needsSize && !value("size")) || !(files.length + photoCount))) {
       return setError("Для публикации заполните описание, категорию, район, состояние, размер при необходимости и добавьте фото.");
     }
+    const ecoLines = canEditEco && ecoDirty && !ecoLockNotice ? ecoRows.map(({ category, quantity }) => ({
+      category,
+      quantity: Number(quantity),
+    })) : undefined;
+    if (ecoLines?.some(({ quantity }) => !Number.isInteger(quantity) || quantity < 1 || quantity > 1_000_000)) {
+      return setError("Проверь количество в разделе «Экологический вклад».");
+    }
     const json = {
       title: value("title"),
       description: value("description") || null,
@@ -85,11 +105,15 @@ export default function ItemForm({ initial }: { initial?: Item }) {
         setFiles((remaining) => remaining.slice(1));
       }
       if (input.current) input.current.value = "";
+      if (ecoLines) {
+        await api("/items/" + saved.id + "/eco", { method: "PUT", json: { lines: ecoLines } });
+        setEcoDirty(false);
+      }
       if (publish) {
         await api("/items/" + saved.id + "/publish", { method: "POST" });
         router.push("/items/" + saved.id);
       } else {
-        setNotice(saved.status === "DRAFT" ? "Черновик сохранен." : "Изменения сохранены.");
+        setNotice(saved.status === "DRAFT" ? "Черновик сохранен." : saved.moderationStatus === "PENDING" ? "Изменения сохранены. Объявление на проверке." : "Изменения сохранены.");
       }
     } catch (failure) {
       showError(failure);
@@ -164,6 +188,19 @@ export default function ItemForm({ initial }: { initial?: Item }) {
         <label className="listing-wide listing-description"><FieldTitle text="Описание" /><textarea name="description" defaultValue={initial?.description || ""} maxLength={2000} rows={5}
           placeholder="Расскажите подробнее о вещи, ее особенностях и возможных дефектах..." /></label>
         <Districts name="districtId" label={<FieldTitle text="Район" />} options={districts.data} value={districtId} onChange={setDistrictId} />
+        {canEditEco && <fieldset className="listing-wide listing-eco">
+          <legend>Экологический вклад</legend>
+          {ecoLockNotice ? <p>{ecoLockNotice}</p> : <>
+            <RequestStatus loading={methodology.loading || eco.loading}
+              error={methodology.error || eco.error || (methodology.data && !itemTypes ? "Справочник типов вещей недоступен." : undefined)}
+              retry={() => {
+                if (!itemTypes) methodology.reload();
+                if (eco.error) eco.reload();
+              }} />
+            {itemTypes && (!initial || eco.data) && <ItemEcoFields itemTypes={itemTypes}
+              rows={ecoRows} onChange={(rows) => { setEcoDraft(rows); setEcoDirty(true); }} />}
+          </>}
+        </fieldset>}
       </fieldset>
     </form>
     <RequestStatus error={error} />
@@ -183,7 +220,7 @@ export default function ItemForm({ initial }: { initial?: Item }) {
       </div>
       <div className="listing-actions">
         {canSaveDraft && <>
-          <button form="listing-form" value="publish" disabled={busy}>Опубликовать объявление</button>
+          <button form="listing-form" value="publish" disabled={busy}>Отправить на проверку</button>
           <button form="listing-form" value="save" className="secondary" disabled={busy}>
             {busy ? "Сохраняем…" : "Сохранить черновик"}
           </button>

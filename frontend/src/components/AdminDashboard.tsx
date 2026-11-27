@@ -41,22 +41,23 @@ function complaintAge(value: string) {
 export default function AdminDashboard() {
   const { user } = useSession();
   const admin = user?.role === "ADMIN";
+  const canModerate = admin || user?.role === "MODERATOR";
   const [section, setSection] = useState("Объявления");
   const [itemStatus, setItemStatus] = useState<ModerationStatus | "">("");
   const [changingItem, setChangingItem] = useState(false);
-  const active = admin ? section : "Жалобы";
-  const pending = useData<Queue>(admin ? "/admin/items?status=PENDING" : "");
-  const reviewed = useData<Queue>(admin ? "/admin/items?status=REVIEWED" : "");
-  const hidden = useData<Queue>(admin ? "/admin/items?status=HIDDEN" : "");
+  const active = admin || section !== "Точки обмена" ? section : "Объявления";
+  const pending = useData<Queue>(canModerate ? "/admin/items?status=PENDING" : "");
+  const reviewed = useData<Queue>(canModerate ? "/admin/items?status=REVIEWED" : "");
+  const hidden = useData<Queue>(canModerate ? "/admin/items?status=HIDDEN" : "");
 
-  if (!admin && user?.role !== "MODERATOR") return <RequestStatus error="Этот раздел доступен администратору или модератору." />;
+  if (!canModerate) return <RequestStatus error="Этот раздел доступен администратору или модератору." />;
 
   const viewClass = active === "Объявления" ? "admin-items-view" : active === "Жалобы" ? "admin-complaints-view" : "";
   return <section className={`admin-dashboard ${viewClass}`}>
     <Link className="admin-back" href="/">Вернуться как обычный пользователь</Link>
     <header className="admin-heading">
       <div><h1>Панель модератора</h1><p>Проверяйте объявления, следите за правилами и помогайте<br />делать платформу безопасной для всех пользователей.</p></div>
-      {admin && <dl className="admin-stats">
+      <dl className="admin-stats">
         {([["PENDING", pending.data?.totalElements], ["REVIEWED", reviewed.data?.totalElements], ["HIDDEN", hidden.data?.totalElements]] as const)
           .map(([status, count]) => <div key={status}>
             <dt>{active === "Объявления" ? <button type="button" disabled={changingItem} aria-pressed={itemStatus === status}
@@ -64,10 +65,10 @@ export default function AdminDashboard() {
               onClick={() => setItemStatus(status)}>{statuses[status]}</button> : statuses[status]}</dt>
             <dd>{count == null ? "—" : String(count).padStart(2, "0")}</dd>
           </div>)}
-      </dl>}
+      </dl>
     </header>
     <nav className="profile-tabs" aria-label="Разделы модерации">
-      {(admin ? ["Объявления", "Жалобы", "Точки обмена"] : ["Жалобы"]).map((label) =>
+      {(admin ? ["Объявления", "Жалобы", "Точки обмена"] : ["Объявления", "Жалобы"]).map((label) =>
         <button type="button" key={label} disabled={changingItem} aria-pressed={active === label} onClick={() => setSection(label)}>{label}</button>)}
     </nav>
     {active === "Объявления" && <ItemQueue key={itemStatus} status={itemStatus} busy={changingItem} onBusy={setChangingItem} onFilter={setItemStatus}
@@ -128,7 +129,7 @@ function ItemQueue({ status, busy, onBusy, onFilter, onChange }: {
         {item.moderationStatus === "PENDING"
           ? <button type="button" className="moderation-approve" disabled={busy} onClick={() => change(item.id, "review")}>Одобрить</button>
           : item.moderationStatus === "HIDDEN"
-            ? <button type="button" className="moderation-approve" disabled={busy} onClick={() => change(item.id, "restore")}>Восстановить</button>
+            ? <button type="button" className="moderation-approve" disabled={busy} onClick={() => change(item.id, "restore")}>Вернуть на проверку</button>
             : <span className="badge moderation-status">{statuses[item.moderationStatus]}</span>}
         <div className="card-body">
           <h2>{item.title}</h2>

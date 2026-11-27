@@ -872,6 +872,12 @@ span.point-map-pin { pointer-events: none; }
 .listing-preview-location img { width: 13px; height: 13px; flex: none; }
 .listing-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(18px, 1.77vw, 34px) 15px; }
 .listing-wide { grid-column: 1 / -1; }
+.listing-eco, .listing-eco-row { display: grid; gap: 12px; min-width: 0; }
+.listing-eco { padding: 12px; border: 1px solid #bdbdbd; border-radius: 15px; }
+.listing-eco > legend { font-weight: 600; }
+.listing-eco p { margin: 0; }
+.listing-eco-row { grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); }
+.listing-eco button { justify-self: start; }
 .listing-fields input, .listing-fields select, .listing-fields textarea { border-color: #bdbdbd; border-radius: 15px; min-height: clamp(40px, 2.66vw, 51px); }
 .listing-fields input, .listing-fields textarea { background: transparent; }
 .listing-fields label { position: relative; }

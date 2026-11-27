@@ -40,10 +40,10 @@ function EcoCategories({ categories }: { categories?: EcoStats["byCategory"] }) 
       <div className="eco-ring" style={{ background: gradient }}>
         <span>{categories ? numberFormat.format(total) : "—"}<small>шт.</small></span>
       </div>
-      {segments.length > 0 ? <ul className="activity-list eco-category-list">
-        {segments.map(({ code, name, share, color, quantity }) => <li key={code}>
-          <span className="eco-category-dot" style={{ background: color }} />
-          <span>{name}</span><span title={`${numberFormat.format(quantity)} шт.`}>{percentFormat.format(share)}</span>
+      {rows.length > 0 ? <ul className="activity-list eco-category-list">
+        {rows.map(({ code, name, quantity }, index) => <li key={code}>
+          <span className="eco-category-dot" style={{ background: categoryColors[Math.min(index, categoryColors.length - 1)] }} />
+          <span>{name}</span><span>{numberFormat.format(quantity)} шт. · {percentFormat.format(quantity / total)}</span>
         </li>)}
       </ul> : <p>Нет данных по категориям</p>}
     </div>
@@ -97,14 +97,16 @@ export default function ProfileEco({ stats, completedTransfers, transfers }: {
   const metrics = transfers ? [
     ["home-package.svg", "Передано", given.length - exchanges],
     ["review-repeat.svg", "Обменяно", exchanges],
-    ["home-truck.svg", "Сокращено отходов", kilograms(stats?.contribution.weightKg)],
+    ["home-truck.svg", "Оценочная масса вещей", kilograms(stats?.contribution.weightKg)],
   ] as const : [["home-package.svg", "Завершенные передачи", stats?.completedTransfers ?? completedTransfers ?? "—"]] as const;
 
   return <div className="profile-eco-layout">
     <section className="panel eco-totals">
-      <h2>CO₂ сэкономлено</h2>
+      <h2>Оценочный вклад в CO₂</h2>
       <p>{kilograms(co2)}</p>
-      {stats?.estimateNotice && <small>{stats.estimateNotice}</small>}
+      {stats?.estimateNotice && <small>{co2 == null
+        ? "Оценка появится после передачи вещи, для типа которой есть коэффициент CO₂."
+        : "Сумма включает вещи, для которых доступна оценка CO₂."}</small>}
     </section>
     <dl className="eco-counts">
       {metrics.map(([icon, label, value]) => <div key={label}>

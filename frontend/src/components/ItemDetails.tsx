@@ -40,7 +40,7 @@ export default function ItemDetails({ id }: { id: string }) {
     setBusy(true);
     try {
       setUpdated(await api<Item>(path + "/" + action, { method: "POST" }));
-      setNotice(action === "publish" ? "Объявление опубликовано." : "Объявление закрыто.");
+      setNotice(action === "publish" ? "Объявление отправлено на проверку." : "Объявление закрыто.");
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
@@ -75,7 +75,8 @@ export default function ItemDetails({ id }: { id: string }) {
   const similar = related.data?.items.filter((entry) => entry.id !== id).slice(0, 3) ?? [];
   const profile = user?.id === data.owner.id ? "/profile" : "/profiles/" + encodeURIComponent(data.owner.id);
   const hidden = data.moderationStatus === "HIDDEN";
-  const visible = !hidden && ["PUBLISHED", "RESERVED"].includes(data.status);
+  const pending = ["PUBLISHED", "RESERVED"].includes(data.status) && data.moderationStatus === "PENDING";
+  const visible = data.moderationStatus === "REVIEWED" && ["PUBLISHED", "RESERVED"].includes(data.status);
   const canReport = user?.id !== data.owner.id && visible;
   function reportAction(className: string) {
     if (!canReport) return null;
@@ -137,8 +138,8 @@ export default function ItemDetails({ id }: { id: string }) {
           {reportAction("button secondary item-report")}
         </div>
         {condition && <p className="item-condition">{condition}</p>}
-        {(hidden || data.status !== "PUBLISHED") && <span className={!hidden && data.status === "RESERVED" ? "badge reserved" : "badge"}>
-          {hidden ? "Закрыто модерацией" : itemStatuses[data.status]}
+        {(hidden || pending || data.status !== "PUBLISHED") && <span className={!hidden && data.status === "RESERVED" ? "badge reserved" : "badge"}>
+          {hidden ? "Закрыто модерацией" : pending ? "На проверке" : itemStatuses[data.status]}
         </span>}
         <div className="item-specs">
           <dl className="item-delivery-method">
@@ -148,7 +149,7 @@ export default function ItemDetails({ id }: { id: string }) {
           {(data.size || data.district || published) && <div className="item-facts">
             {data.size && <p><img src="/design/size.svg" alt="" /><span>Размер: <b>{data.size}</b></span></p>}
             {data.district && <p><img src="/design/map.svg" alt="" /><span>Район: <b>{data.district.name}</b></span></p>}
-            {published && <p><img src="/design/clock.svg" alt="" /><span>Опубликовано: <time dateTime={data.publishedAt ?? undefined}
+            {published && <p><img src="/design/clock.svg" alt="" /><span>{pending ? "Отправлено на проверку" : "Опубликовано"}: <time dateTime={data.publishedAt ?? undefined}
               title={published.toLocaleDateString("ru-RU")}>{daysPublished ? publicationAge.format(daysPublished) : "сегодня"}</time></span></p>}
           </div>}
           {data.description && <p className="description"><strong>Описание:</strong> {data.description}</p>}
@@ -156,7 +157,7 @@ export default function ItemDetails({ id }: { id: string }) {
         </div>
         {canManage && ["DRAFT", "PUBLISHED"].includes(data.status) && <div className="actions">
           <Link className="button secondary" href={path + "/edit"}>Изменить</Link>
-          {data.status === "DRAFT" && <button disabled={busy} onClick={() => change("publish")}>Опубликовать</button>}
+          {data.status === "DRAFT" && <button disabled={busy} onClick={() => change("publish")}>Отправить на проверку</button>}
           <button className="secondary" disabled={busy} onClick={() => change("close")}>Закрыть</button>
         </div>}
         <RequestStatus error={error} />

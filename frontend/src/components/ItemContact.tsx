@@ -36,7 +36,7 @@ export default function ItemContact({ item, action }: { item: Item; action: "mes
     }
   }
 
-  if (user === undefined || user?.id === item.owner.id || item.status !== "PUBLISHED" || item.moderationStatus === "HIDDEN") return null;
+  if (user === undefined || user?.id === item.owner.id || item.status !== "PUBLISHED" || item.moderationStatus !== "REVIEWED") return null;
   return <>
     {action === "message" ? <button className="item-contact-message" type="button" disabled={busy} onClick={() => start(false)}>
       <img src="/design/message.svg" alt="" />Написать владельцу

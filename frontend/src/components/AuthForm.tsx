@@ -129,6 +129,8 @@ export default function AuthForm({ register = false }: { register?: boolean }) {
         {Object.entries(fields).map(([field, message]) => <li key={field}>{message}</li>)}
       </ul>}
       {notice && <p role="status">{notice}</p>}
+      {email && notice && typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname) &&
+        <p>При локальном запуске письма доступны в <a href="http://localhost:8025" target="_blank" rel="noreferrer">Mailpit</a>.</p>}
       {email && <button className="secondary" disabled={busy} onClick={resend}>Отправить письмо еще раз</button>}
       {!register && <p className="auth-switch">Еще нет аккаунта? <Link href="/register">Зарегистрироваться</Link></p>}
     </div>

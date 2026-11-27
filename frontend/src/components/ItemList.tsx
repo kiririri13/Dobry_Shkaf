@@ -65,7 +65,7 @@ export default function ItemList({ mine = false, preview = false, search = "", c
           <Link className="card-image" href={"/items/" + item.id} aria-label={item.title}>
             {item.photos[0] ? <img src={item.photos[0].url} alt={item.title} /> : !preview && <span>Без фото</span>}
             {!preview && <span className={item.status === "RESERVED" ? "badge reserved" : "badge"}>
-              {item.moderationStatus === "HIDDEN" ? "Закрыто модерацией" : item.status === "PUBLISHED" && !mine ? "Можно забрать" : itemStatuses[item.status]}
+              {item.moderationStatus === "HIDDEN" ? "Закрыто модерацией" : item.status === "PUBLISHED" && item.moderationStatus === "PENDING" ? "На проверке" : item.status === "PUBLISHED" && !mine ? "Можно забрать" : itemStatuses[item.status]}
             </span>}
           </Link>
           <div className="card-body">
