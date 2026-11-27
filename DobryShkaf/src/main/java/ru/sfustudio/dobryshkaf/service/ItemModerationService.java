@@ -30,7 +30,7 @@ public class ItemModerationService {
 
     @Transactional(readOnly = true)
     public PageResponse<ItemResponse> queue(ItemModerationStatus status, int page) {
-        Specification<Item> spec = (root, query, cb) -> root.get("status").in(Item.PUBLIC_STATUSES);
+        Specification<Item> spec = (root, query, cb) -> root.get("status").in(Item.SUBMITTED_STATUSES);
         if (status != null) {
             spec = spec.and((root, query, cb) -> cb.equal(root.get("moderationStatus"), status));
         }
@@ -48,7 +48,11 @@ public class ItemModerationService {
         if (action == ItemAction.RESTORE && item.getModerationStatus() != ItemModerationStatus.HIDDEN) {
             return ItemResponse.from(item);
         }
-        ItemModerationStatus status = action == ItemAction.HIDE ? ItemModerationStatus.HIDDEN : ItemModerationStatus.REVIEWED;
+        ItemModerationStatus status = switch (action) {
+            case REVIEW -> ItemModerationStatus.REVIEWED;
+            case HIDE -> ItemModerationStatus.HIDDEN;
+            case RESTORE -> ItemModerationStatus.PENDING;
+        };
         if (item.moderate(status)) {
             if (action == ItemAction.HIDE) {
                 transfers.rejectOpenRequests(item, actor.id());

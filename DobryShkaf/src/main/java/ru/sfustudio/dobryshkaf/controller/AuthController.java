@@ -13,6 +13,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,6 +29,7 @@ import ru.sfustudio.dobryshkaf.dto.MessageResponse;
 import ru.sfustudio.dobryshkaf.dto.RegisterRequest;
 import ru.sfustudio.dobryshkaf.dto.ResendConfirmationRequest;
 import ru.sfustudio.dobryshkaf.dto.UserResponse;
+import ru.sfustudio.dobryshkaf.exception.AuthenticationRequiredException;
 import ru.sfustudio.dobryshkaf.service.AccountService;
 
 import java.util.UUID;
@@ -41,6 +43,7 @@ public class AuthController {
     private final AccountService accountService;
     private final AuthenticationManager authenticationManager;
     private final SecurityContextRepository securityContextRepository;
+    private final SecurityContextLogoutHandler sessionLogout = new SecurityContextLogoutHandler();
 
     @Operation(summary = "Регистрация", description = "На почту придёт письмо со ссылкой подтверждения")
     @PostMapping("/register")
@@ -101,8 +104,15 @@ public class AuthController {
 
     @Operation(summary = "Текущий пользователь")
     @GetMapping("/me")
-    public UserResponse me(@Parameter(hidden = true) Authentication authentication) {
-        return currentUser(authentication);
+    public UserResponse me(@Parameter(hidden = true) Authentication authentication,
+                           HttpServletRequest request, HttpServletResponse response) {
+        UserResponse account = currentUser(authentication);
+        String role = "ROLE_" + account.role().name();
+        if (authentication.getAuthorities().stream().noneMatch(authority -> role.equals(authority.getAuthority()))) {
+            sessionLogout.logout(request, response, authentication);
+            throw new AuthenticationRequiredException();
+        }
+        return account;
     }
 
     private UserResponse currentUser(Authentication authentication) {

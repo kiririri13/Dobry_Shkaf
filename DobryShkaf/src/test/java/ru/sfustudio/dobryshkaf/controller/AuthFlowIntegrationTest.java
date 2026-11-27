@@ -142,6 +142,29 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
+    void roleChangeRequiresNewLoginBeforeUsingModerationQueue() throws Exception {
+        registerAndConfirm(EMAIL, null);
+        MockHttpSession userSession = (MockHttpSession) login(EMAIL, PASSWORD)
+                .andExpect(status().isOk())
+                .andReturn().getRequest().getSession(false);
+
+        jdbcTemplate.update("update users set role = 'MODERATOR' where email = ?", EMAIL);
+        mockMvc.perform(get("/api/admin/items").session(userSession)).andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/auth/me").session(userSession))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+        assertThat(userSession.isInvalid()).isTrue();
+
+        MockHttpSession moderatorSession = (MockHttpSession) login(EMAIL, PASSWORD)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("MODERATOR"))
+                .andReturn().getRequest().getSession(false);
+        mockMvc.perform(get("/api/admin/items").param("status", "PENDING").session(moderatorSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isArray());
+    }
+
+    @Test
     void logoutRequiresCsrfToken() throws Exception {
         registerAndConfirm(EMAIL, null);
         MockHttpSession session = (MockHttpSession) login(EMAIL, PASSWORD)

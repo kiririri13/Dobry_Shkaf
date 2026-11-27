@@ -35,13 +35,15 @@ class ItemTest {
     }
 
     @Test
-    void publishesDraft() {
+    void draftIsPublicOnlyAfterReview() {
         Item item = completeItem(category(false), null);
 
         item.publish(NOW);
 
         assertThat(item.getStatus()).isEqualTo(ItemStatus.PUBLISHED);
         assertThat(item.getPublishedAt()).isEqualTo(NOW);
+        assertThat(item.isPublic()).isFalse();
+        item.moderate(ItemModerationStatus.REVIEWED);
         assertThat(item.isPublic()).isTrue();
     }
 

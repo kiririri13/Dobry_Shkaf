@@ -61,6 +61,8 @@ public class SecurityConfig {
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/api/admin/complaints", "/api/admin/complaints/**")
                         .hasAnyRole(UserRole.ADMIN.name(), UserRole.MODERATOR.name())
+                        .requestMatchers("/api/admin/items", "/api/admin/items/**")
+                        .hasAnyRole(UserRole.ADMIN.name(), UserRole.MODERATOR.name())
                         .requestMatchers("/api/admin/**").hasRole(UserRole.ADMIN.name())
                         .requestMatchers(HttpMethod.POST, ANONYMOUS_POST_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()

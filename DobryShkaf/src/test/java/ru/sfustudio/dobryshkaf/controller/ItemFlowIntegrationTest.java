@@ -20,6 +20,7 @@ import ru.sfustudio.dobryshkaf.domain.Category;
 import ru.sfustudio.dobryshkaf.domain.District;
 import ru.sfustudio.dobryshkaf.domain.Item;
 import ru.sfustudio.dobryshkaf.domain.ItemCondition;
+import ru.sfustudio.dobryshkaf.domain.ItemModerationStatus;
 import ru.sfustudio.dobryshkaf.domain.User;
 import ru.sfustudio.dobryshkaf.domain.UserRole;
 import ru.sfustudio.dobryshkaf.repository.CategoryRepository;
@@ -88,6 +89,7 @@ class ItemFlowIntegrationTest {
     private User owner;
     private User stranger;
     private User admin;
+    private User moderator;
     private Category kidsClothing;
     private Category books;
     private District kirovsky;
@@ -99,6 +101,7 @@ class ItemFlowIntegrationTest {
         owner = userRepository.save(confirmedUser("owner@example.com", UserRole.USER));
         stranger = userRepository.save(confirmedUser("stranger@example.com", UserRole.USER));
         admin = userRepository.save(confirmedUser("admin@example.com", UserRole.ADMIN));
+        moderator = userRepository.save(confirmedUser("moderator@example.com", UserRole.MODERATOR));
         kidsClothing = category("kids-clothing");
         books = category("books");
         kirovsky = district("Кировский");
@@ -115,7 +118,22 @@ class ItemFlowIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("PUBLISHED"))
                 .andExpect(jsonPath("$.photos.length()").value(1))
-                .andExpect(jsonPath("$.photos[0].contentType").value("image/jpeg"));
+                .andExpect(jsonPath("$.photos[0].contentType").value("image/jpeg"))
+                .andExpect(jsonPath("$.moderationStatus").value("PENDING"));
+
+        String photoUrl = JsonPath.read(perform(get("/api/items/{id}", id), owner)
+                .andReturn().getResponse().getContentAsString(), "$.photos[0].url");
+        search().andExpect(jsonPath("$.totalElements").value(0));
+        mockMvc.perform(get("/api/profiles/{id}/items", owner.getId())).andExpect(jsonPath("$.totalElements").value(0));
+        mockMvc.perform(get("/api/items/{id}", id)).andExpect(status().isNotFound());
+        mockMvc.perform(get(photoUrl)).andExpect(status().isNotFound());
+        perform(get(photoUrl), moderator).andExpect(status().isOk());
+        perform(get("/api/admin/items?status=PENDING"), moderator)
+                .andExpect(jsonPath("$.items[0].id").value(id.toString()));
+        perform(post("/api/admin/items/{id}/review", id), stranger).andExpect(status().isForbidden());
+        perform(post("/api/admin/items/{id}/review", id), moderator)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.moderationStatus").value("REVIEWED"));
+        mockMvc.perform(get(photoUrl)).andExpect(status().isOk());
 
         search("q", "КОМБИНЕЗОН", "categoryId", kidsClothing.getId().toString(), "districtId", kirovsky.getId().toString(),
                 "condition", "LIKE_NEW", "size", "122", "available", "true")
@@ -308,6 +326,7 @@ class ItemFlowIntegrationTest {
             item.edit("Вещь " + i, "Описание", ItemCondition.NEW, null, books, kirovsky);
             item.addPhoto("test/" + UUID.randomUUID() + ".jpg", "image/jpeg", 1);
             item.publish(base.plusSeconds(i));
+            item.moderate(ItemModerationStatus.REVIEWED);
             itemRepository.save(item);
         }
 
@@ -416,6 +435,7 @@ class ItemFlowIntegrationTest {
         UUID id = createDraft(user, itemJson(title, "Описание", "USED", null, books.getId(), kirovsky.getId()));
         uploadPhoto(user, id, JPEG, "photo.jpg", "image/jpeg").andExpect(status().isCreated());
         perform(post("/api/items/{id}/publish", id), user).andExpect(status().isOk());
+        perform(post("/api/admin/items/{id}/review", id), admin).andExpect(status().isOk());
         return id;
     }
 

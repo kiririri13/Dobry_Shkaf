@@ -99,7 +99,7 @@ public class ItemService {
             requireComplete(item);
         }
         item.publish(Instant.now());
-        notifications.item(item, NotificationService.Type.ITEM_PUBLISHED, null);
+        notifications.item(item, NotificationService.Type.ITEM_SUBMITTED, null);
         return respond(item);
     }
 
@@ -109,7 +109,7 @@ public class ItemService {
         if (item.getStatus() == ItemStatus.CLOSED) {
             return ItemResponse.from(item);
         }
-        boolean published = item.getStatus() == ItemStatus.PUBLISHED;
+        boolean published = item.getStatus() == ItemStatus.PUBLISHED && item.isPublic();
         item.close();
         // Закрытую вещь уже не получить: ждущие ответа запросы отклоняются, история сохраняется
         transferService.rejectOpenRequests(item, user.id());
@@ -196,7 +196,8 @@ public class ItemService {
     }
 
     private static boolean canView(Item item, Optional<CurrentUser> viewer) {
-        return item.isPublic() || viewer.map(user -> user.canManage(item)).orElse(false);
+        return item.isPublic() || viewer.map(user -> user.canManage(item)
+                || (user.moderator() && item.isSubmitted())).orElse(false);
     }
 
     private static void requireCanManage(Item item, CurrentUser user) {

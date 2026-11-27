@@ -27,6 +27,7 @@ class TransferTest {
         item.edit("Санки", "Описание", ItemCondition.USED, null, mock(Category.class), mock(District.class));
         item.addPhoto("key", "image/jpeg", 1);
         item.publish(NOW);
+        item.moderate(ItemModerationStatus.REVIEWED);
         transfer = new Transfer(item, user(), mock(Chat.class));
     }
 

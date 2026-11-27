@@ -136,7 +136,7 @@ public class ProfileService {
     public Favorites favorites(CurrentUser viewer) {
         List<ItemResponse> favoriteItems = jdbc.sql("""
                 select f.item_id from favorite_items f join items i on i.id = f.item_id
-                where f.user_id = ? and i.status in ('PUBLISHED', 'RESERVED') and i.moderation_status <> 'HIDDEN'
+                where f.user_id = ? and i.status in ('PUBLISHED', 'RESERVED') and i.moderation_status = 'REVIEWED'
                 order by f.created_at desc, f.item_id
                 """).param(viewer.id()).query(UUID.class).list().stream()
                 .map(id -> items.findById(id).filter(Item::isPublic))

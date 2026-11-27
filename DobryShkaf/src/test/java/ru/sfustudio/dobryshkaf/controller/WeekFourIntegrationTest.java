@@ -19,6 +19,7 @@ import ru.sfustudio.dobryshkaf.support.WeekThreeFixtures;
 
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -73,15 +74,16 @@ class WeekFourIntegrationTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Новое имя"))
                 .andExpect(jsonPath("$.email").doesNotExist());
 
+        jdbc.update("update items set moderation_status = 'PENDING' where id = ?", item.getId());
+        as(admin, get("/api/admin/items?status=PENDING"), null)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].photos", hasSize(1)));
+        as(admin, post("/api/admin/items/{id}/review", item.getId()), null)
+                .andExpect(jsonPath("$.moderationStatus").value("REVIEWED"));
         String favorite = "/api/profile/me/favorites/ITEMS/" + item.getId();
         as(receiver, put(favorite), null).andExpect(status().isNoContent());
         as(receiver, put(favorite), null).andExpect(status().isNoContent());
         as(receiver, get("/api/profile/me/favorites"), null).andExpect(jsonPath("$.items", hasSize(1)));
         as(receiver, get("/api/admin/items"), null).andExpect(status().isForbidden());
-        as(admin, get("/api/admin/items?status=PENDING"), null)
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].photos", hasSize(1)));
-        as(admin, post("/api/admin/items/{id}/review", item.getId()), null)
-                .andExpect(jsonPath("$.moderationStatus").value("REVIEWED"));
 
         String transfer = request(item.getId(), receiver);
         as(admin, post("/api/admin/items/{id}/hide", item.getId()), "{\"reason\":\"Проверка описания\"}")
@@ -90,9 +92,12 @@ class WeekFourIntegrationTest {
         mvc.perform(get("/api/items")).andExpect(jsonPath("$.items", hasSize(0)));
         as(receiver, get("/api/profile/me/favorites"), null).andExpect(jsonPath("$.items", hasSize(0)));
         as(receiver, get("/api/transfers/{id}", transfer), null).andExpect(jsonPath("$.status").value("REJECTED"));
-        as(admin, post("/api/admin/items/{id}/restore", item.getId()), null).andExpect(status().isOk());
+        as(admin, post("/api/admin/items/{id}/restore", item.getId()), null)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.moderationStatus").value("PENDING"));
+        mvc.perform(get("/api/items/{id}", item.getId())).andExpect(status().isNotFound());
+        as(admin, post("/api/admin/items/{id}/review", item.getId()), null).andExpect(status().isOk());
         mvc.perform(get("/api/items/{id}", item.getId())).andExpect(status().isOk());
-        as(admin, get("/api/admin/moderation-log"), null).andExpect(jsonPath("$", hasSize(3)));
+        as(admin, get("/api/admin/moderation-log"), null).andExpect(jsonPath("$", hasSize(4)));
     }
 
     @Test
@@ -160,6 +165,31 @@ class WeekFourIntegrationTest {
     }
 
     @Test
+    void contributionUsesTypicalWeightWhenOnlyTypeAndQuantityAreProvided() throws Exception {
+        mvc.perform(get("/api/eco/methodology")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.itemTypes[?(@.category == 'COTTON_TSHIRT')].averageWeightKg", hasItem(0.3)))
+                .andExpect(jsonPath("$.itemTypes[?(@.category == 'COTTON_TROUSERS')].averageWeightKg", hasItem(0.7)))
+                .andExpect(jsonPath("$.coefficients[?(@.category == 'COTTON_TROUSERS')].coefficient", hasItem(20.3)));
+
+        as(owner, put("/api/items/{id}/eco", item.getId()), """
+                {"lines":[{"category":"COTTON_TSHIRT","quantity":2},
+                          {"category":"COTTON_TROUSERS","quantity":1},
+                          {"category":"UNSPECIFIED","quantity":1}]}""")
+                .andExpect(status().isOk());
+        String transfer = request(item.getId(), receiver);
+        as(owner, post("/api/transfers/{id}/select", transfer), null).andExpect(status().isOk());
+        as(receiver, post("/api/transfers/{id}/confirm", transfer), null).andExpect(status().isOk());
+        as(owner, post("/api/transfers/{id}/confirm", transfer), null)
+                .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("COMPLETED"));
+
+        as(owner, get("/api/profile/me/stats"), null).andExpect(status().isOk())
+                .andExpect(jsonPath("$.contribution.weightKg").value(1.3))
+                .andExpect(jsonPath("$.contribution.co2eKg").value(30.7))
+                .andExpect(jsonPath("$.contribution.countedItems").value(4))
+                .andExpect(jsonPath("$.contribution.estimatedItems").value(3));
+    }
+
+    @Test
     void contributionSurvivesRetryReopenAndCoefficientUpdateWithoutCountingOriginTwice() throws Exception {
         as(owner, put("/api/items/{id}/eco", item.getId()), """
                 {"lines":[
@@ -169,7 +199,7 @@ class WeekFourIntegrationTest {
         close(item.getId());
         close(item.getId());
         mvc.perform(get("/api/stats")).andExpect(jsonPath("$.closedListings").value(1))
-                .andExpect(jsonPath("$.contribution.weightKg").value(0.4))
+                .andExpect(jsonPath("$.contribution.weightKg").value(1.1))
                 .andExpect(jsonPath("$.contribution.co2eKg").value(33.6));
 
         String line = field(as(owner, get("/api/items/{id}/eco", item.getId()), null), "$.credits[0].lineId");

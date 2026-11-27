@@ -53,12 +53,12 @@ final class ItemSpecifications {
 
     private static Specification<Item> publicListings(Boolean available) {
         return statusIn(visibleStatuses(available))
-                .and((root, query, cb) -> cb.notEqual(root.get("moderationStatus"), ItemModerationStatus.HIDDEN));
+                .and((root, query, cb) -> cb.equal(root.get("moderationStatus"), ItemModerationStatus.REVIEWED));
     }
 
     private static Set<ItemStatus> visibleStatuses(Boolean available) {
         if (available == null) {
-            return Item.PUBLIC_STATUSES;
+            return Item.SUBMITTED_STATUSES;
         }
         return available ? Set.of(ItemStatus.PUBLISHED) : Set.of(ItemStatus.RESERVED);
     }

@@ -82,6 +82,8 @@ class FrontendAdditionsIntegrationTest {
         as(owner.getId(), put("/api/items/{id}", item.getId()), edit.formatted(category, district))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.deliveryMethod").value("EXCHANGE"));
 
+        mvc.perform(get("/api/items/{id}", item.getId())).andExpect(status().isNotFound());
+        as(actors.admin(), post("/api/admin/items/{id}/review", item.getId()), null).andExpect(status().isOk());
         String transfer = requestTransfer();
         mvc.perform(get("/api/profiles/{id}/history", owner.getId()))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items", hasSize(0)));
@@ -156,6 +158,7 @@ class FrontendAdditionsIntegrationTest {
         as(actors.reader(), get("/api/complaints/{id}", complaint), null)
                 .andExpect(status().isOk()).andExpect(jsonPath("$.outcome").value("UPHELD"));
         as(owner.getId(), get("/api/complaints/{id}", complaint), null).andExpect(status().isNotFound());
+        jdbc.update("update items set moderation_status = 'PENDING' where id = ?", item.getId());
         as(actors.admin(), post("/api/admin/items/{id}/review", item.getId()), null).andExpect(status().isOk());
         String transfer = requestTransfer();
         completeTransfer(transfer);

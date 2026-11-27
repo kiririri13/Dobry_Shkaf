@@ -73,8 +73,12 @@ public class EcoService {
                 }
                 BigDecimal totalWeight = input.weightMode() == WeightMode.PER_UNIT
                         ? input.weightKg().multiply(BigDecimal.valueOf(input.quantity())) : input.weightKg();
-                jdbc.sql("insert into eco_item_lines (item_id, category, quantity, weight_kg) values (?, ?, ?, ?)")
-                        .params(itemId, input.category(), input.quantity(), totalWeight).update();
+                jdbc.sql("""
+                        insert into eco_item_lines (item_id, category, quantity, weight_kg)
+                        values (:item, :category, :quantity, coalesce(:weight, :quantity * (
+                            select average_weight_kg from eco_item_types where category = :category)))
+                        """).param("item", itemId).param("category", input.category())
+                        .param("quantity", input.quantity()).param("weight", totalWeight).update();
             }
         }
         return lines(itemId);
@@ -179,6 +183,8 @@ public class EcoService {
                 : transfers.countForParticipant(author, TransferStatus.COMPLETED);
         long closed = jdbc.sql("""
                 select count(*) from items i where i.status = 'CLOSED' and i.published_at is not null
+                    and (i.moderation_status = 'REVIEWED' or exists (
+                        select 1 from eco_events e where e.item_id = i.id and e.active))
                     and (cast(:author as uuid) is null or i.owner_id = cast(:author as uuid))
                 """).param("author", author).query(Long.class).single();
         Totals totals = jdbc.sql("""
@@ -211,7 +217,8 @@ public class EcoService {
                     union all
                     select i.category_id, 1
                     from items i
-                    where i.status in ('CLOSED', 'TRANSFERRED') and i.published_at is not null
+                    where (i.status = 'TRANSFERRED' or (i.status = 'CLOSED' and i.moderation_status = 'REVIEWED'))
+                        and i.published_at is not null
                         and (cast(:author as uuid) is null or i.owner_id = cast(:author as uuid))
                         and not exists (select 1 from eco_events e where e.item_id = i.id)
                 )
@@ -227,9 +234,12 @@ public class EcoService {
                 select distinct on (category) category, version, coefficient, source
                 from eco_coefficients order by category, version desc
                 """).query(Coefficient.class).list();
+        List<ItemType> itemTypes = jdbc.sql("""
+                select category, name, average_weight_kg from eco_item_types order by name
+                """).query(ItemType.class).list();
         return new Methodology("Оценочный углеродный эквивалент", "кг CO₂-экв.",
                 "Оценка соответствует производству и распределению нового аналога, если передача замещает его покупку.",
-                NO_ESTIMATE, coefficients);
+                NO_ESTIMATE, coefficients, itemTypes);
     }
 
     @Transactional
@@ -331,7 +341,11 @@ public class EcoService {
     public record Coefficient(String category, int version, BigDecimal coefficient, String source) {
     }
 
-    public record Methodology(String name, String unit, String explanation, String noEstimate, List<Coefficient> coefficients) {
+    public record ItemType(String category, String name, BigDecimal averageWeightKg) {
+    }
+
+    public record Methodology(String name, String unit, String explanation, String noEstimate,
+                              List<Coefficient> coefficients, List<ItemType> itemTypes) {
     }
 
     public record PointBatch(UUID id, UUID pointId, BatchKind kind, int quantity, BigDecimal weightKg, OffsetDateTime createdAt) {

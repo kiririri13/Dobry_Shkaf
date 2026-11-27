@@ -38,8 +38,8 @@ public class Item {
 
     public static final int MAX_PHOTOS = 5;
 
-    /** Статусы, в которых объявление видно всем, а не только владельцу. */
-    public static final Set<ItemStatus> PUBLIC_STATUSES = EnumSet.of(ItemStatus.PUBLISHED, ItemStatus.RESERVED);
+    /** Статусы объявлений, отправленных на модерацию. */
+    public static final Set<ItemStatus> SUBMITTED_STATUSES = EnumSet.of(ItemStatus.PUBLISHED, ItemStatus.RESERVED);
 
     private static final Set<ItemStatus> EDITABLE_STATUSES = EnumSet.of(ItemStatus.DRAFT, ItemStatus.PUBLISHED);
 
@@ -113,7 +113,7 @@ public class Item {
         this.size = size;
         this.category = category;
         this.district = district;
-        markPendingIfVisible();
+        requireReviewAgain();
     }
 
     /** Поля, без которых объявление нельзя опубликовать; пустой набор — можно. */
@@ -154,7 +154,10 @@ public class Item {
 
     public void changeDeliveryMethod(DeliveryMethod deliveryMethod) {
         requireEditable();
-        this.deliveryMethod = Objects.requireNonNull(deliveryMethod);
+        if (this.deliveryMethod != Objects.requireNonNull(deliveryMethod)) {
+            this.deliveryMethod = deliveryMethod;
+            requireReviewAgain();
+        }
     }
 
     public void reopen(Instant now) {
@@ -166,7 +169,7 @@ public class Item {
     }
 
     public boolean moderate(ItemModerationStatus next) {
-        if (!PUBLIC_STATUSES.contains(status)) {
+        if (!isSubmitted()) {
             throw new ConflictException("ITEM_NOT_MODERATABLE", "Объявление сейчас вне очереди модерации");
         }
         if (moderationStatus == next) {
@@ -176,7 +179,7 @@ public class Item {
         return true;
     }
 
-    private void markPendingIfVisible() {
+    private void requireReviewAgain() {
         if (moderationStatus == ItemModerationStatus.REVIEWED) {
             moderationStatus = ItemModerationStatus.PENDING;
         }
@@ -187,14 +190,14 @@ public class Item {
         int nextOrder = photos.stream().mapToInt(ItemPhoto::getSortOrder).max().orElse(-1) + 1;
         ItemPhoto photo = new ItemPhoto(this, storageKey, contentType, sizeBytes, nextOrder);
         photos.add(photo);
-        markPendingIfVisible();
+        requireReviewAgain();
         return photo;
     }
 
     public void removePhoto(ItemPhoto photo) {
         requireEditable();
         photos.remove(photo);
-        markPendingIfVisible();
+        requireReviewAgain();
     }
 
     public boolean hasRoomForPhoto() {
@@ -205,8 +208,12 @@ public class Item {
         return owner.getId().equals(userId);
     }
 
+    public boolean isSubmitted() {
+        return SUBMITTED_STATUSES.contains(status);
+    }
+
     public boolean isPublic() {
-        return PUBLIC_STATUSES.contains(status) && moderationStatus != ItemModerationStatus.HIDDEN;
+        return isSubmitted() && moderationStatus == ItemModerationStatus.REVIEWED;
     }
 
     public boolean hasPublicHistoryPhoto() {

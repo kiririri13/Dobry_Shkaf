@@ -71,7 +71,7 @@ public class ItemController {
         return itemService.update(id, request, CurrentUser.require(authentication));
     }
 
-    @Operation(summary = "Опубликовать черновик", description = "Нужны название, описание, состояние, категория, район, фото и размер, если его требует категория")
+    @Operation(summary = "Отправить черновик на модерацию", description = "Нужны название, описание, состояние, категория, район, фото и размер, если его требует категория")
     @PostMapping("/{id}/publish")
     public ItemResponse publish(@PathVariable UUID id, @Parameter(hidden = true) Authentication authentication) {
         return itemService.publish(id, CurrentUser.require(authentication));

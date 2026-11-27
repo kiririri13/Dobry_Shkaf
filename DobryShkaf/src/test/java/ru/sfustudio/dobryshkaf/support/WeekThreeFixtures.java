@@ -6,6 +6,7 @@ import ru.sfustudio.dobryshkaf.domain.Category;
 import ru.sfustudio.dobryshkaf.domain.District;
 import ru.sfustudio.dobryshkaf.domain.Item;
 import ru.sfustudio.dobryshkaf.domain.ItemCondition;
+import ru.sfustudio.dobryshkaf.domain.ItemModerationStatus;
 import ru.sfustudio.dobryshkaf.domain.User;
 import ru.sfustudio.dobryshkaf.domain.UserRole;
 import ru.sfustudio.dobryshkaf.repository.CategoryRepository;
@@ -59,6 +60,7 @@ public class WeekThreeFixtures {
         item.edit("Книга", "Описание", ItemCondition.NEW, null, books, district);
         item.addPhoto("test/" + UUID.randomUUID() + ".jpg", "image/jpeg", 1);
         item.publish(Instant.now());
+        item.moderate(ItemModerationStatus.REVIEWED);
         return itemRepository.save(item);
     }
 }
